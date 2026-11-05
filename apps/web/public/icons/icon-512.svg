@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vila da Lua">
+  <defs>
+    <radialGradient id="bg" cx="35%" cy="25%" r="85%">
+      <stop offset="0" stop-color="#2b251d"/>
+      <stop offset="1" stop-color="#100e0c"/>
+    </radialGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#f0cf86"/>
+      <stop offset="1" stop-color="#b88945"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
+  <circle cx="256" cy="236" r="148" fill="none" stroke="#d2a85e" stroke-width="5" opacity=".4"/>
+  <circle cx="256" cy="236" r="116" fill="url(#moon)"/>
+  <circle cx="310" cy="193" r="116" fill="#17130f"/>
+  <path d="M127 403c38-59 70-70 129-83 59 13 91 24 129 83" fill="none" stroke="#d2a85e" stroke-width="11" stroke-linecap="round"/>
+  <path d="M164 379l24-67 21 45 47-77 47 77 21-45 24 67" fill="#17130f" stroke="#d2a85e" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="220" cy="208" r="9" fill="#17130f" opacity=".3"/>
+  <circle cx="197" cy="258" r="14" fill="#17130f" opacity=".2"/>
+</svg>

@@ -1,0 +1,19 @@
+{
+  "name": "@our-werewolf/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "node --conditions=development --import tsx --watch src/index.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "start": "node dist/index.js",
+    "test": "node --conditions=development --import tsx --test src/*.test.ts src/**/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@our-werewolf/domain": "0.1.0",
+    "@our-werewolf/shared": "0.1.0",
+    "ws": "^8.18.3"
+  }
+}

@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dimensionamento de infraestrutura - Vila da Lua</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 15mm 14mm 17mm;
+      }
+
+      :root {
+        color: #201b16;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.45;
+        --ink: #201b16;
+        --muted: #665d52;
+        --amber: #a36d21;
+        --amber-soft: #f4ead7;
+        --green: #315f4b;
+        --line: #d8c8ae;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      h1,
+      h2,
+      h3 {
+        color: var(--ink);
+        font-family: Georgia, 'Times New Roman', serif;
+        line-height: 1.1;
+      }
+
+      h1 {
+        max-width: 150mm;
+        margin: 0 0 5mm;
+        font-size: 27pt;
+        font-weight: 500;
+      }
+
+      h2 {
+        margin: 9mm 0 3mm;
+        padding-bottom: 1.5mm;
+        border-bottom: 1px solid var(--line);
+        font-size: 17pt;
+      }
+
+      h3 {
+        margin: 5mm 0 2mm;
+        font-size: 12.5pt;
+      }
+
+      p {
+        margin: 0 0 3mm;
+      }
+
+      ul,
+      ol {
+        margin: 2mm 0 4mm;
+        padding-left: 6mm;
+      }
+
+      li {
+        margin-bottom: 1.2mm;
+      }
+
+      table {
+        width: 100%;
+        margin: 4mm 0;
+        border-collapse: collapse;
+        font-size: 9.1pt;
+      }
+
+      th,
+      td {
+        padding: 2.4mm 2.2mm;
+        border: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        color: #fff;
+        background: #3b3025;
+        font-weight: 700;
+      }
+
+      tbody tr:nth-child(even) {
+        background: #faf7f1;
+      }
+
+      code {
+        padding: 0.2mm 1mm;
+        color: #6d4514;
+        background: var(--amber-soft);
+        font-family: 'SFMono-Regular', Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      .cover {
+        min-height: 244mm;
+        padding: 20mm 13mm 12mm;
+        color: #f8f0df;
+        background:
+          radial-gradient(circle at 78% 16%, #c49955 0 8%, transparent 8.5%),
+          radial-gradient(circle at 78% 16%, #2d261f 0 13%, transparent 13.5%),
+          linear-gradient(145deg, #17130f, #2d261e 58%, #17130f);
+        page-break-after: always;
+      }
+
+      .cover h1 {
+        margin-top: 48mm;
+        color: #f8f0df;
+      }
+
+      .cover .kicker {
+        color: #e1bd7b;
+        font-size: 10pt;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .cover .subtitle {
+        max-width: 125mm;
+        color: #cfc3ae;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 15pt;
+      }
+
+      .cover .meta {
+        margin-top: 68mm;
+        padding-top: 4mm;
+        color: #ad9e87;
+        border-top: 1px solid rgba(225, 189, 123, 0.35);
+        font-size: 9pt;
+      }
+
+      .notice,
+      .recommendation,
+      .warning {
+        margin: 4mm 0;
+        padding: 3.5mm 4mm;
+        border-left: 4px solid var(--amber);
+        background: var(--amber-soft);
+      }
+
+      .recommendation {
+        border-color: var(--green);
+        background: #e8f1ec;
+      }
+
+      .warning {
+        border-color: #9a3e34;
+        background: #f8e8e5;
+      }
+
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        margin: 4mm 0;
+        gap: 3mm;
+      }
+
+      .metric {
+        min-height: 26mm;
+        padding: 3mm;
+        border: 1px solid var(--line);
+        background: #faf7f1;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--amber);
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 18pt;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 8.8pt;
+      }
+
+      .page-break {
+        page-break-before: always;
+      }
+
+      .avoid-break {
+        break-inside: avoid;
+      }
+
+      footer {
+        margin-top: 10mm;
+        padding-top: 3mm;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+        font-size: 8.5pt;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="cover">
+      <div class="kicker">Vila da Lua / Our Werewolf</div>
+      <h1>Dimensionamento de infraestrutura para cloud</h1>
+      <p class="subtitle">
+        Estimativas de CPU, memoria, armazenamento e rede por quantidade de
+        jogadores simultaneos.
+      </p>
+      <div class="meta">
+        <p>Arquitetura avaliada: Node.js 24 + WebSocket + SQLite + Nginx</p>
+        <p>Versao do projeto: 0.1.0</p>
+        <p>Data: 5 de novembro de 2026</p>
+      </div>
+    </section>
+
+    <main>
+      <h2>1. Resumo executivo</h2>
+      <div class="notice">
+        <strong>Importante:</strong> estes numeros sao pontos de partida
+        conservadores, nao resultados de benchmark. O dimensionamento final deve
+        ser confirmado com teste de carga no mesmo provedor, regiao, tipo de
+        maquina, volume, proxy e TLS usados em producao.
+      </div>
+
+      <p>
+        O jogo transmite JSON e mantem um WebSocket por participante. Nao ha
+        audio, video ou upload de arquivos, portanto o consumo por jogador e
+        baixo. A carga ocorre em rajadas durante entrada na sala, acoes
+        noturnas, votacoes e mudancas de fase.
+      </p>
+      <p>
+        A arquitetura atual opera com <strong>uma unica instancia</strong> do
+        servidor e SQLite. O limite pratico e determinado mais pela escrita
+        serializada do SQLite e pela transmissao de snapshots para as salas do
+        que pela memoria de cada conexao.
+      </p>
+
+      <div class="metric-grid">
+        <div class="metric">
+          <strong>20</strong>
+          jogadores por sala, no maximo
+        </div>
+        <div class="metric">
+          <strong>1.000</strong>
+          jogadores simultaneos: alvo seguro para a arquitetura atual apos teste
+        </div>
+        <div class="metric">
+          <strong>2.500</strong>
+          teto de avaliacao em instancia unica; teste de carga obrigatorio
+        </div>
+      </div>
+
+      <h2>2. Premissas usadas</h2>
+      <ul>
+        <li>Jogadores simultaneos, e nao contas cadastradas.</li>
+        <li>Entre 6 e 20 jogadores por sala.</li>
+        <li>Uma conexao WebSocket ativa por jogador.</li>
+        <li>
+          Snapshots tipicos de 5 a 20 KB, enviados somente aos membros da sala.
+        </li>
+        <li>
+          Sem audio, video, imagens de usuario ou chat de alta frequencia.
+        </li>
+        <li>Uma instancia Node.js executando API, WebSocket e prazos.</li>
+        <li>
+          SQLite em SSD persistente local, sem armazenamento de rede lento.
+        </li>
+        <li>
+          Reserva minima de 35% a 40% para picos, runtime e sistema operacional.
+        </li>
+      </ul>
+
+      <h2>3. Tabela de dimensionamento inicial</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Jogadores simultaneos</th>
+            <th>Salas simultaneas</th>
+            <th>CPU recomendada</th>
+            <th>RAM recomendada</th>
+            <th>Rede</th>
+            <th>Observacao</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ate 20</td>
+            <td>1 a 4</td>
+            <td>1 vCPU compartilhada</td>
+            <td>1 GB</td>
+            <td>5 Mbps</td>
+            <td>Desenvolvimento, demonstracao ou um grupo.</td>
+          </tr>
+          <tr>
+            <td>ate 100</td>
+            <td>5 a 17</td>
+            <td>1 vCPU dedicada</td>
+            <td>1 GB</td>
+            <td>10 Mbps</td>
+            <td>Piloto pequeno; SSD de 10 GB.</td>
+          </tr>
+          <tr>
+            <td>ate 500</td>
+            <td>25 a 84</td>
+            <td>2 vCPU</td>
+            <td>2 GB</td>
+            <td>25 Mbps</td>
+            <td>Primeiro nivel de producao; monitoramento obrigatorio.</td>
+          </tr>
+          <tr>
+            <td>ate 1.000</td>
+            <td>50 a 167</td>
+            <td>4 vCPU</td>
+            <td>4 GB</td>
+            <td>50 a 100 Mbps</td>
+            <td>
+              Recomendado como limite operacional inicial da arquitetura atual.
+            </td>
+          </tr>
+          <tr>
+            <td>ate 2.500</td>
+            <td>125 a 417</td>
+            <td>4 a 8 vCPU</td>
+            <td>8 GB</td>
+            <td>100 a 200 Mbps</td>
+            <td>
+              Somente apos teste de carga; SQLite pode se tornar o gargalo.
+            </td>
+          </tr>
+          <tr>
+            <td>mais de 2.500</td>
+            <td>mais de 125 salas cheias</td>
+            <td>arquitetura distribuida</td>
+            <td>8 GB por instancia como ponto inicial</td>
+            <td>200 Mbps ou mais</td>
+            <td>Migrar banco e coordenacao antes de aumentar replicas.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="recommendation">
+        <strong>Recomendacao para o primeiro servidor publico:</strong> 2 vCPU,
+        2 GB de RAM, 20 GB de SSD e rede de pelo menos 25 Mbps. Este perfil e um
+        bom ponto de partida para ate 500 jogadores simultaneos, desde que o
+        teste de carga confirme latencia e escrita do volume escolhido.
+      </div>
+
+      <h2 class="page-break">4. Memoria</h2>
+      <p>Considere o seguinte orcamento aproximado:</p>
+      <ul>
+        <li>Node.js, Nginx e sistema: 250 a 450 MB.</li>
+        <li>
+          SQLite, cache de paginas e buffers: 100 a 400 MB conforme atividade.
+        </li>
+        <li>Conexoes, filas e snapshots: reserve ate 0,5 MB por jogador.</li>
+        <li>Margem de seguranca: pelo menos 35% da RAM total.</li>
+      </ul>
+      <p>
+        A reserva de 0,5 MB por jogador e intencionalmente superior ao estado
+        permanente atual. Ela cobre buffers temporarios, serializacao de JSON,
+        reconexoes e variacao do runtime. Se a memoria permanecer acima de 70%
+        por 15 minutos, aumente a instancia ou reduza o limite de salas.
+      </p>
+
+      <h2>5. CPU e comportamento em rajadas</h2>
+      <p>
+        A maior parte do tempo as conexoes ficam ociosas. CPU e usada para
+        validar comandos, resolver regras, serializar snapshots e transmitir
+        atualizacoes. Uma votacao de 20 pessoas gera varias atualizacoes para a
+        mesma sala em pouco tempo, por isso CPU dedicada e preferivel a partir
+        de 100 jogadores.
+      </p>
+      <p>Use estes limites operacionais:</p>
+      <ul>
+        <li>CPU media abaixo de 60% e picos abaixo de 80%.</li>
+        <li>Latencia p95 de comandos abaixo de 250 ms.</li>
+        <li>Nenhuma fase vencida aguardando o executor de prazos.</li>
+        <li>Event loop sem atrasos sustentados acima de 100 ms.</li>
+      </ul>
+
+      <h2>6. Armazenamento e backup</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Ambiente</th>
+            <th>SSD inicial</th>
+            <th>Backup sugerido</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Piloto / ate 100 jogadores</td>
+            <td>10 GB</td>
+            <td>Diario e antes de cada deploy.</td>
+          </tr>
+          <tr>
+            <td>Producao / ate 1.000 jogadores</td>
+            <td>20 a 40 GB</td>
+            <td>A cada 6 horas, diario retido e antes de deploy.</td>
+          </tr>
+          <tr>
+            <td>Evento / acima de 1.000</td>
+            <td>40 GB ou mais</td>
+            <td>Politica validada de snapshot e restauracao.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Use SSD com baixa latencia. Volumes de rede lentos prejudicam as
+        transacoes do SQLite. Teste restauracao, nao apenas criacao do backup.
+      </p>
+
+      <h2>7. Quando migrar a arquitetura</h2>
+      <div class="warning">
+        Nao aumente o numero de replicas do servidor atual usando o mesmo
+        arquivo SQLite. Isso pode duplicar executores de prazo e nao oferece um
+        banco compartilhado seguro entre maquinas.
+      </div>
+      <p>Migre antes de escalar horizontalmente:</p>
+      <ol>
+        <li>Substitua SQLite por PostgreSQL gerenciado.</li>
+        <li>Crie lease distribuido para o executor de prazos.</li>
+        <li>
+          Use Redis ou outro barramento para presenca e eventos entre replicas.
+        </li>
+        <li>Adicione balanceador com suporte a WebSocket.</li>
+        <li>
+          Execute testes com desconexao, retomada e falha de uma instancia.
+        </li>
+      </ol>
+      <p>
+        Avalie essa migracao ao se aproximar de 1.000 jogadores simultaneos,
+        quando a latencia p95 ultrapassar 250 ms ou quando o SQLite apresentar
+        espera de escrita, mesmo que CPU e RAM ainda estejam disponiveis.
+      </p>
+
+      <h2>8. Plano de teste de carga</h2>
+      <ol>
+        <li>
+          Crie grupos de 6, 10 e 20 jogadores, mantendo um WebSocket por
+          jogador.
+        </li>
+        <li>
+          Simule entrada, prontidao, inicio, noite, discussao, voto e reconexao.
+        </li>
+        <li>
+          Aumente em degraus de 100 jogadores e mantenha cada nivel por 15
+          minutos.
+        </li>
+        <li>Inclua rajadas em que todas as salas votam no mesmo intervalo.</li>
+        <li>
+          Reinicie o servidor durante partidas e confirme a retomada dos prazos.
+        </li>
+        <li>
+          Interrompa quando CPU atingir 80%, RAM 75% ou p95 ultrapassar 500 ms.
+        </li>
+        <li>
+          Defina a capacidade publicada em no maximo 60% do limite observado.
+        </li>
+      </ol>
+
+      <h2>9. Checklist cloud</h2>
+      <ul>
+        <li>Uma regiao proxima dos participantes.</li>
+        <li>HTTPS obrigatorio e `COOKIE_SECURE=true`.</li>
+        <li>Volume SSD persistente montado em `/data`.</li>
+        <li>Health check em `/api/health`.</li>
+        <li>
+          Monitoramento de CPU, RAM, disco, WebSockets, erros e transicoes.
+        </li>
+        <li>Alertas para fases atrasadas, disco acima de 70% e erros 5xx.</li>
+        <li>Backup e restauracao testados.</li>
+        <li>Limites de criacao e entrada mantidos no proxy e na aplicacao.</li>
+      </ul>
+
+      <footer>
+        Relatorio de estimativa para Vila da Lua 0.1.0. A capacidade contratada
+        deve ser revisada depois de cada mudanca relevante no formato dos
+        snapshots, persistencia, frequencia de eventos ou arquitetura.
+      </footer>
+    </main>
+  </body>
+</html>

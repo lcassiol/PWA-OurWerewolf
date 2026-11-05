@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#100e0c" />
+    <title>Offline | Vila da Lua</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        min-width: 320px;
+        color: #f1e8d3;
+        background: #100e0c;
+        font-family: system-ui, sans-serif;
+      }
+      body {
+        display: grid;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0;
+        padding: 1.25rem;
+        place-items: center;
+        background: radial-gradient(circle at 50% 25%, #2b251d, #100e0c 55%);
+      }
+      main {
+        width: min(100%, 30rem);
+        text-align: center;
+      }
+      .moon {
+        color: #d2a85e;
+        font-family: Georgia, serif;
+        font-size: 7rem;
+        line-height: 1;
+      }
+      small {
+        color: #d2a85e;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 0.6rem 0;
+        font-family: Georgia, serif;
+        font-size: clamp(2.5rem, 13vw, 4.5rem);
+        font-weight: 500;
+        line-height: 1;
+      }
+      p {
+        color: #b9ad96;
+        line-height: 1.6;
+      }
+      button {
+        min-width: 12rem;
+        min-height: 48px;
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        color: #17120b;
+        border: 1px solid #edcb83;
+        border-radius: 3px;
+        background: linear-gradient(160deg, #e8c477, #b88945);
+        font:
+          800 0.9rem system-ui,
+          sans-serif;
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 3px solid #f0cf86;
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="moon" aria-hidden="true">◒</div>
+      <small>A estrada desapareceu</small>
+      <h1>Você está offline</h1>
+      <p>
+        A estrutura da vila está disponível, mas partidas, papéis e decisões
+        sempre exigem conexão com o servidor.
+      </p>
+      <button type="button" onclick="location.reload()">
+        Tentar reconectar
+      </button>
+    </main>
+  </body>
+</html>

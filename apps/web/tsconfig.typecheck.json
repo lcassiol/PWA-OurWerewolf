@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "baseUrl": ".",
+    "rootDir": "../..",
+    "paths": {
+      "@our-werewolf/shared": ["../../packages/shared/src/index.ts"]
+    }
+  },
+  "references": []
+}

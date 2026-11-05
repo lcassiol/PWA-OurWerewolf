@@ -1,0 +1,45 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.server
+    environment:
+      PORT: '3001'
+      DATABASE_PATH: /data/our-werewolf.sqlite
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8080}
+      COOKIE_SECURE: ${COOKIE_SECURE:?COOKIE_SECURE must be true for HTTPS or false for local HTTP}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-604800}
+      CREATE_RATE_LIMIT: ${CREATE_RATE_LIMIT:-10}
+      JOIN_RATE_LIMIT: ${JOIN_RATE_LIMIT:-30}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      DEADLINE_POLL_MS: ${DEADLINE_POLL_MS:-1000}
+    volumes:
+      - game-data:/data
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    restart: unless-stopped
+
+volumes:
+  game-data:

@@ -1,0 +1,95 @@
+import type { GameSnapshot } from '@our-werewolf/shared';
+
+export function makeSnapshot(
+  overrides: Partial<GameSnapshot> = {},
+): GameSnapshot {
+  const snapshot: GameSnapshot = {
+    public: {
+      roomCode: 'LUAR',
+      status: 'lobby',
+      version: 3,
+      round: 0,
+      phase: 'lobby',
+      deadline: null,
+      players: [
+        {
+          id: 'p1',
+          nickname: 'Iara',
+          alive: true,
+          ready: false,
+          connection: 'connected',
+          host: true,
+        },
+        {
+          id: 'p2',
+          nickname: 'Bento',
+          alive: true,
+          ready: true,
+          connection: 'connected',
+          host: false,
+        },
+        {
+          id: 'p3',
+          nickname: 'Cora',
+          alive: true,
+          ready: true,
+          connection: 'connected',
+          host: false,
+        },
+        {
+          id: 'p4',
+          nickname: 'Davi',
+          alive: true,
+          ready: true,
+          connection: 'connected',
+          host: false,
+        },
+        {
+          id: 'p5',
+          nickname: 'Eva',
+          alive: true,
+          ready: true,
+          connection: 'connected',
+          host: false,
+        },
+        {
+          id: 'p6',
+          nickname: 'Félix',
+          alive: true,
+          ready: true,
+          connection: 'connected',
+          host: false,
+        },
+      ],
+      settings: {
+        discussionMinutes: 5,
+        allowNoExile: true,
+        specialRoles: ['seer'],
+      },
+      announcements: [],
+      winner: null,
+    },
+    private: {
+      playerId: 'p1',
+      role: null,
+      alignment: null,
+      objective: null,
+      knownPlayers: [],
+      resources: {},
+      availableAction: null,
+      personalWinner: false,
+    },
+    host: {
+      canConfigure: true,
+      canStart: false,
+      startBlockers: ['Iara ainda não está pronta.'],
+    },
+  };
+
+  return {
+    ...snapshot,
+    ...overrides,
+    public: { ...snapshot.public, ...overrides.public },
+    private: { ...snapshot.private, ...overrides.private },
+  };
+}

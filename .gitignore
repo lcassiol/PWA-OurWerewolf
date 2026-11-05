@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.env
+.DS_Store
+playwright-report/
+test-results/
