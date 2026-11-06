@@ -7,7 +7,12 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { WebSocket, type RawData } from 'ws';
-import type { GameSnapshot, RoomSettings } from './contracts.js';
+import {
+  themeIds,
+  type GameSnapshot,
+  type RoomSettings,
+  type ThemeId,
+} from './contracts.js';
 import { loadConfig, type ServerConfig } from './env.js';
 import { createLogger } from './logger.js';
 import { clientAddress, createApplication } from './server.js';
@@ -37,6 +42,7 @@ async function start(
   logLines: string[] = [],
   now?: () => Date,
   generateCode?: () => string,
+  generateTheme?: () => ThemeId,
 ): Promise<RunningApp> {
   const database = new DatabaseSync(':memory:');
   const application = createApplication({
@@ -46,6 +52,7 @@ async function start(
     startDeadlineRunner: false,
     ...(now ? { now } : {}),
     ...(generateCode ? { generateCode } : {}),
+    ...(generateTheme ? { generateTheme } : {}),
   });
   application.server.listen(0, '127.0.0.1');
   await once(application.server, 'listening');
@@ -325,10 +332,18 @@ void test('room edge cases preserve authorization and frozen lobby state', async
 });
 
 void test('participants receive stable avatars and can choose their own', async () => {
-  const application = await start();
+  const application = await start(
+    {},
+    [],
+    undefined,
+    undefined,
+    () => 'spirit-veil',
+  );
   try {
     const host = await createRoom(application);
     const code = host.snapshot.public.roomCode;
+    assert.equal(host.snapshot.public.themeId, 'spirit-veil');
+    assert.equal(themeIds.includes(host.snapshot.public.themeId), true);
     const members: Member[] = [host];
     for (let index = 1; index < 10; index += 1) {
       const response = await request(application, `/rooms/${code}/join`, {
@@ -777,6 +792,7 @@ void test('post-game return preserves the host and reopens the existing room', a
     const lobby = (await json<{ snapshot: GameSnapshot }>(returned)).snapshot;
     assert.equal(lobby.public.status, 'lobby');
     assert.equal(lobby.public.phase, 'lobby');
+    assert.equal(lobby.public.themeId, host.snapshot.public.themeId);
     assert.equal(lobby.public.players.length, 6);
     assert.equal(
       lobby.public.players.every((player) => !player.ready),

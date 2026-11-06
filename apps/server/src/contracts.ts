@@ -1,4 +1,4 @@
-export { avatarIds } from '@our-werewolf/shared';
+export { avatarIds, themeIds } from '@our-werewolf/shared';
 export type {
   ActionChoice,
   Alignment,
@@ -22,4 +22,5 @@ export type {
   RoomSettings,
   RoomStatus,
   ServerEvent,
+  ThemeId,
 } from '@our-werewolf/shared';

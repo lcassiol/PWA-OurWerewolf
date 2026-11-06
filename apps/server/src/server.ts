@@ -8,6 +8,7 @@ import type { Duplex } from 'node:stream';
 import { isIP } from 'node:net';
 import { DatabaseSync } from 'node:sqlite';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
+import type { ThemeId } from './contracts.js';
 import { createDomainAdapter, type DomainAdapter } from './domain-adapter.js';
 import { migrateUp } from './db/migrate.js';
 import type { ServerConfig } from './env.js';
@@ -34,6 +35,7 @@ export type CreateApplicationOptions = {
   now?: () => Date;
   startDeadlineRunner?: boolean;
   generateCode?: () => string;
+  generateTheme?: () => ThemeId;
 };
 
 export function createApplication(options: CreateApplicationOptions) {
@@ -49,6 +51,7 @@ export function createApplication(options: CreateApplicationOptions) {
     sessionTtlSeconds: options.config.sessionTtlSeconds,
     ...(options.now ? { now: options.now } : {}),
     ...(options.generateCode ? { generateCode: options.generateCode } : {}),
+    ...(options.generateTheme ? { generateTheme: options.generateTheme } : {}),
   });
   const createLimiter = new RateLimiter(
     options.config.createRateLimit,

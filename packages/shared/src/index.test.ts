@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { GameSnapshot } from './index.js';
-import { avatarIds, parseRoomSettings } from './index.js';
+import { avatarIds, parseRoomSettings, themeIds } from './index.js';
 
 describe('shared contracts', () => {
   it('offers ten distinct participant avatars', () => {
     expect(avatarIds).toHaveLength(10);
     expect(new Set(avatarIds).size).toBe(10);
+  });
+
+  it('limits rooms to the five defined themes', () => {
+    expect(themeIds).toHaveLength(5);
+    expect(new Set(themeIds).size).toBe(5);
   });
 
   it('validates and deduplicates room settings', () => {
@@ -31,6 +36,7 @@ describe('shared contracts', () => {
     const snapshot: GameSnapshot = {
       public: {
         roomCode: 'WOLF',
+        themeId: 'blue-moon',
         status: 'lobby',
         version: 1,
         round: 0,

@@ -1,6 +1,6 @@
 :root {
-  color: #f1e8d3;
-  background: #100e0c;
+  color: var(--paper);
+  background: var(--ink);
   font-family:
     Inter,
     ui-sans-serif,
@@ -11,19 +11,77 @@
     sans-serif;
   font-synthesis: none;
   color-scheme: dark;
-  --ink: #100e0c;
-  --ink-raised: #171410;
-  --charcoal: #211d18;
-  --paper: #f1e8d3;
-  --paper-muted: #b9ad96;
-  --amber: #d2a85e;
-  --amber-light: #f0cf86;
-  --rust: #9f493d;
-  --moss: #72866a;
-  --line: rgba(210, 168, 94, 0.26);
-  --line-strong: rgba(210, 168, 94, 0.52);
+  --theme-background: #231a16;
+  --theme-panel: #49362c;
+  --theme-primary: #b7653c;
+  --theme-accent: #d9ad61;
+  --theme-text: #f5ecd9;
+  --ink: var(--theme-background);
+  --ink-raised: color-mix(
+    in srgb,
+    var(--theme-background) 78%,
+    var(--theme-panel)
+  );
+  --charcoal: var(--theme-panel);
+  --charcoal-soft: color-mix(
+    in srgb,
+    var(--theme-panel) 86%,
+    var(--theme-background)
+  );
+  --paper: var(--theme-text);
+  --paper-muted: color-mix(
+    in srgb,
+    var(--theme-text) 68%,
+    var(--theme-background)
+  );
+  --amber: var(--theme-accent);
+  --amber-light: color-mix(in srgb, var(--theme-accent) 78%, white);
+  --rust: var(--theme-primary);
+  --moss: var(--theme-primary);
+  --line: color-mix(in srgb, var(--theme-accent) 26%, transparent);
+  --line-strong: color-mix(in srgb, var(--theme-accent) 52%, transparent);
   --serif: Georgia, 'Times New Roman', serif;
   accent-color: var(--amber);
+}
+
+:root[data-theme='blue-moon'] {
+  --theme-background: #0b1020;
+  --theme-panel: #1b2942;
+  --theme-primary: #759cc9;
+  --theme-accent: #d4af64;
+  --theme-text: #f3ebdd;
+}
+
+:root[data-theme='cursed-forest'] {
+  --theme-background: #0d1915;
+  --theme-panel: #203d32;
+  --theme-primary: #6f9472;
+  --theme-accent: #c49a52;
+  --theme-text: #eee8d5;
+}
+
+:root[data-theme='blood-moon'] {
+  --theme-background: #190f16;
+  --theme-panel: #3b1d2b;
+  --theme-primary: #9e354a;
+  --theme-accent: #c48a68;
+  --theme-text: #f2e4dc;
+}
+
+:root[data-theme='spirit-veil'] {
+  --theme-background: #151126;
+  --theme-panel: #30244a;
+  --theme-primary: #8e77bf;
+  --theme-accent: #68bdb1;
+  --theme-text: #f0eaf8;
+}
+
+:root[data-theme='autumn-legend'] {
+  --theme-background: #231a16;
+  --theme-panel: #49362c;
+  --theme-primary: #b7653c;
+  --theme-accent: #d9ad61;
+  --theme-text: #f5ecd9;
 }
 
 * {
@@ -47,15 +105,20 @@ body {
   background:
     radial-gradient(
       circle at 12% -8%,
-      rgba(210, 168, 94, 0.09),
+      color-mix(in srgb, var(--theme-accent) 9%, transparent),
       transparent 31rem
     ),
     radial-gradient(
       circle at 92% 45%,
-      rgba(114, 134, 106, 0.06),
+      color-mix(in srgb, var(--theme-primary) 8%, transparent),
       transparent 26rem
     ),
-    linear-gradient(145deg, #100e0c 0%, #15120f 52%, #0c0b09 100%);
+    linear-gradient(
+      145deg,
+      var(--theme-background) 0%,
+      color-mix(in srgb, var(--theme-background) 88%, var(--theme-panel)) 52%,
+      color-mix(in srgb, var(--theme-background) 88%, black) 100%
+    );
 }
 
 body::before {
@@ -200,22 +263,30 @@ p {
 }
 
 .primary-button {
-  color: #17120b;
-  border: 1px solid #edcb83;
-  background: linear-gradient(160deg, #e8c477, #b88945);
+  color: var(--theme-background);
+  border: 1px solid var(--amber-light);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--theme-primary) 62%, var(--theme-text)),
+    var(--theme-primary)
+  );
   box-shadow:
     0 9px 28px rgba(0, 0, 0, 0.34),
     inset 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .primary-button:not(:disabled):hover {
-  background: linear-gradient(160deg, #f0d18e, #c6964d);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--theme-primary) 45%, var(--theme-text)),
+    color-mix(in srgb, var(--theme-primary) 82%, var(--theme-accent))
+  );
 }
 
 .secondary-button {
   color: var(--paper);
   border: 1px solid var(--line-strong);
-  background: rgba(210, 168, 94, 0.07);
+  background: color-mix(in srgb, var(--theme-accent) 7%, transparent);
 }
 
 .secondary-button:not(:disabled):hover {
@@ -272,7 +343,7 @@ select {
   color: var(--paper);
   border: 1px solid var(--line);
   border-radius: 3px;
-  background: rgba(3, 3, 2, 0.48);
+  background: color-mix(in srgb, var(--theme-background) 78%, black);
 }
 
 input::placeholder {
@@ -307,8 +378,8 @@ input::placeholder {
   height: 38%;
   background: linear-gradient(transparent, var(--line-strong), transparent);
   box-shadow:
-    18px 80px 0 rgba(210, 168, 94, 0.14),
-    36px 30px 0 rgba(210, 168, 94, 0.09);
+    18px 80px 0 color-mix(in srgb, var(--theme-accent) 14%, transparent),
+    36px 30px 0 color-mix(in srgb, var(--theme-accent) 9%, transparent);
   transform: rotate(-28deg);
 }
 
@@ -317,11 +388,11 @@ input::placeholder {
   bottom: -8rem;
   width: 18rem;
   height: 18rem;
-  border: 1px solid rgba(210, 168, 94, 0.13);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 13%, transparent);
   border-radius: 50%;
   box-shadow:
-    0 0 0 2.5rem rgba(210, 168, 94, 0.025),
-    0 0 0 5rem rgba(210, 168, 94, 0.018);
+    0 0 0 2.5rem color-mix(in srgb, var(--theme-accent) 2.5%, transparent),
+    0 0 0 5rem color-mix(in srgb, var(--theme-accent) 1.8%, transparent);
 }
 
 .home-hero {
@@ -350,6 +421,67 @@ input::placeholder {
   top: -0.5rem;
   right: 0;
   font-size: 0.76rem;
+}
+
+.room-theme-art {
+  position: relative;
+  width: 100%;
+  margin: 0 0 1.2rem;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--charcoal);
+  box-shadow:
+    0 22px 60px rgba(0, 0, 0, 0.44),
+    0 0 34px color-mix(in srgb, var(--theme-accent) 13%, transparent);
+}
+
+.room-theme-art::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  background: linear-gradient(
+    transparent 62%,
+    color-mix(in srgb, var(--theme-background) 88%, transparent)
+  );
+}
+
+.room-theme-art img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.52;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.room-theme-art figcaption {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  right: 0.8rem;
+  bottom: 0.6rem;
+  left: 0.8rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--theme-text);
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-shadow: 0 2px 8px black;
+  text-transform: uppercase;
+}
+
+.room-theme-art figcaption strong,
+.room-theme-art figcaption span {
+  display: block;
+}
+
+.room-theme-art figcaption span {
+  color: color-mix(in srgb, var(--theme-text) 78%, transparent);
+  text-align: right;
 }
 
 .moon-seal {
@@ -413,7 +545,7 @@ input::placeholder {
   border-radius: 5px;
   background:
     linear-gradient(130deg, rgba(255, 255, 255, 0.025), transparent 42%),
-    rgba(24, 21, 17, 0.88);
+    color-mix(in srgb, var(--theme-panel) 88%, transparent);
   box-shadow: 0 18px 55px rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(14px);
 }

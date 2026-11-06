@@ -44,13 +44,25 @@ describe('abertura offline', () => {
 
   it('anuncia a fase atual em uma região viva após restaurar a sessão', async () => {
     const apiClient = mockApi();
-    vi.mocked(apiClient.restoreSession).mockResolvedValue(makeSnapshot());
+    vi.mocked(apiClient.restoreSession).mockResolvedValue(
+      makeSnapshot({
+        public: { ...makeSnapshot().public, themeId: 'spirit-veil' },
+      }),
+    );
     render(<App apiClient={apiClient} />);
 
     await waitFor(() =>
       expect(screen.getByText(/Fase atual: lobby/)).toBeInTheDocument(),
     );
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+    expect(document.documentElement).toHaveAttribute(
+      'data-theme',
+      'spirit-veil',
+    );
+    expect(document.querySelector('meta[name="theme-color"]')).toHaveAttribute(
+      'content',
+      '#151126',
+    );
   });
 
   it.each(['unauthorized', 'forbidden'])(

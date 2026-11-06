@@ -13,6 +13,16 @@ export const avatarIds = [
 
 export type AvatarId = (typeof avatarIds)[number];
 
+export const themeIds = [
+  'blue-moon',
+  'cursed-forest',
+  'blood-moon',
+  'spirit-veil',
+  'autumn-legend',
+] as const;
+
+export type ThemeId = (typeof themeIds)[number];
+
 export const roleIds = [
   'werewolf',
   'villager',
@@ -61,6 +71,7 @@ export type RoomSettings = {
 
 export type PublicSnapshot = {
   roomCode: string;
+  themeId: ThemeId;
   status: RoomStatus;
   version: number;
   round: number;

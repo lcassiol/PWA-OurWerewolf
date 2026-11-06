@@ -1,0 +1,7 @@
+| Opção | Atmosfera | Fundo | Painéis | Primária | Destaque | Texto |
+|---|---|---|---|---|---|---|
+| **1. Lua Azul** | Mistério clássico | `#0B1020` | `#1B2942` | `#759CC9` | `#D4AF64` | `#F3EBDD` |
+| **2. Floresta Maldita** | Fantasia e natureza | `#0D1915` | `#203D32` | `#6F9472` | `#C49A52` | `#EEE8D5` |
+| **3. Lua de Sangue** | Terror e tensão | `#190F16` | `#3B1D2B` | `#9E354A` | `#C48A68` | `#F2E4DC` |
+| **4. Véu dos Espíritos** | Magia e sobrenatural | `#151126` | `#30244A` | `#8E77BF` | `#68BDB1` | `#F0EAF8` |
+| **5. Lenda de Outono** | Folclore e aconchego | `#231A16` | `#49362C` | `#B7653C` | `#D9AD61` | `#F5ECD9` |

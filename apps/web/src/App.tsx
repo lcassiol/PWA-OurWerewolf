@@ -21,6 +21,7 @@ import {
   recoverRejectedCommand,
   selectCurrentSnapshot,
 } from './snapshots';
+import { themeCatalog } from './themeCatalog';
 
 export function App({ apiClient = api }: { apiClient?: ApiClient }) {
   const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
@@ -30,6 +31,21 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
   const [online, setOnline] = useState(navigator.onLine);
   const [retrySession, setRetrySession] = useState(0);
   const installState = usePwaInstall();
+  const themeId = snapshot?.public.themeId ?? 'autumn-legend';
+
+  useEffect(() => {
+    const theme = themeCatalog[themeId];
+    document.documentElement.dataset.theme = themeId;
+    let themeColor = document.querySelector<HTMLMetaElement>(
+      'meta[name="theme-color"]',
+    );
+    if (!themeColor) {
+      themeColor = document.createElement('meta');
+      themeColor.name = 'theme-color';
+      document.head.append(themeColor);
+    }
+    themeColor.content = theme.background;
+  }, [themeId]);
 
   const applySnapshot = (incoming: GameSnapshot) => {
     setSnapshot((current) => selectCurrentSnapshot(current, incoming));
@@ -227,9 +243,8 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
           run(() => apiClient.setAvatar(snapshot.public.roomCode, avatarId))
         }
         onSettings={(settings: RoomSettings) =>
-          run(
-            () => apiClient.updateSettings(snapshot.public.roomCode, settings),
-            'Configuração salva.',
+          run(() =>
+            apiClient.updateSettings(snapshot.public.roomCode, settings),
           )
         }
         onStart={() => run(() => apiClient.startGame(snapshot.public.roomCode))}

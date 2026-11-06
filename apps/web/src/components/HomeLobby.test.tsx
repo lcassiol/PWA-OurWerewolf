@@ -100,6 +100,11 @@ describe('lobby', () => {
     expect(
       screen.getByRole('button', { name: 'Compartilhar sala LUAR' }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', {
+        name: 'Lobisomem do tema Lenda de Outono',
+      }),
+    ).toBeInTheDocument();
     const blockers = within(screen.getByLabelText('Pendências para iniciar'));
     expect(
       blockers.getByText('São necessários de 6 a 20 jogadores.'),
@@ -108,8 +113,8 @@ describe('lobby', () => {
       blockers.getByText('Todos os jogadores precisam estar prontos.'),
     ).toBeInTheDocument();
     expect(
-      blockers.getByText('A composição de papéis é inválida.'),
-    ).toBeInTheDocument();
+      blockers.queryByText('A composição de papéis é inválida.'),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Começar a crônica' }),
     ).toBeDisabled();

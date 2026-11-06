@@ -9,8 +9,9 @@ import type {
   GameSnapshot,
   RoleId,
   RoomSettings,
+  ThemeId,
 } from './contracts.js';
-import { avatarIds } from './contracts.js';
+import { avatarIds, themeIds } from './contracts.js';
 import type { DomainAdapter } from './domain-adapter.js';
 import {
   fromWitchResources,
@@ -35,6 +36,7 @@ type RoomRow = {
   show_final_timeline: number;
   special_roles_json: string;
   version: number;
+  theme_id: ThemeId;
   expires_at: string;
 };
 
@@ -112,6 +114,7 @@ export type ServiceOptions = {
   sessionTtlSeconds: number;
   now?: () => Date;
   generateCode?: () => string;
+  generateTheme?: () => ThemeId;
 };
 
 const actionByRole: Partial<Record<RoleId, GameActionType>> = {
@@ -217,6 +220,10 @@ function randomCode(): string {
     .join('');
 }
 
+function randomTheme(): ThemeId {
+  return themeIds[randomBytes(1)[0]! % themeIds.length]!;
+}
+
 function settingsFromRoom(room: RoomRow): RoomSettings {
   return {
     discussionMinutes: room.discussion_minutes,
@@ -252,6 +259,7 @@ export class GameService {
   private readonly sessionTtlSeconds: number;
   private readonly now: () => Date;
   private readonly generateCode: () => string;
+  private readonly generateTheme: () => ThemeId;
   private roomChanged: (roomCode: string) => void = () => undefined;
 
   constructor(options: ServiceOptions) {
@@ -262,6 +270,7 @@ export class GameService {
     this.sessionTtlSeconds = options.sessionTtlSeconds;
     this.now = options.now ?? (() => new Date());
     this.generateCode = options.generateCode ?? randomCode;
+    this.generateTheme = options.generateTheme ?? randomTheme;
     this.resetPresence();
   }
 
@@ -281,6 +290,7 @@ export class GameService {
       const roomId = randomUUID();
       const participantId = randomUUID();
       const code = this.generateCode();
+      const themeId = this.generateTheme();
       assert(
         /^[A-Z]{4}$/.test(code),
         500,
@@ -293,11 +303,12 @@ export class GameService {
           this.database
             .prepare(
               `INSERT INTO rooms
-            (id, code, allow_no_exile, created_at, expires_at) VALUES (?, ?, 0, ?, ?)`,
+            (id, code, theme_id, allow_no_exile, created_at, expires_at) VALUES (?, ?, ?, 0, ?, ?)`,
             )
             .run(
               roomId,
               code,
+              themeId,
               now.toISOString(),
               new Date(now.getTime() + 86_400_000).toISOString(),
             );
@@ -1080,6 +1091,7 @@ export class GameService {
     const snapshot: GameSnapshot = {
       public: {
         roomCode: room.code,
+        themeId: room.theme_id,
         status: room.status,
         version: game?.version ?? room.version,
         round: game?.round ?? 0,

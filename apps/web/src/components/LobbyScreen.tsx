@@ -3,6 +3,7 @@ import type {
   GameSnapshot,
   RoleId,
   RoomSettings,
+  ThemeId,
 } from '@our-werewolf/shared';
 import { useRef, useState } from 'react';
 import {
@@ -12,6 +13,7 @@ import {
   werewolfCount,
 } from '../catalog';
 import type { NetworkState } from '../hooks';
+import { themeCatalog } from '../themeCatalog';
 import { ConnectionBadge } from './ConnectionBadge';
 import { ParticipantAvatar } from './ParticipantAvatar';
 import { AvatarPicker } from './AvatarPicker';
@@ -33,7 +35,6 @@ type LobbyScreenProps = {
 const startBlockerLabels: Record<string, string> = {
   'player-count': 'São necessários de 6 a 20 jogadores.',
   'players-not-ready': 'Todos os jogadores precisam estar prontos.',
-  'invalid-composition': 'A composição de papéis é inválida.',
   'host-disconnected': 'O anfitrião precisa estar conectado.',
 };
 
@@ -72,6 +73,10 @@ export function LobbyScreen(props: LobbyScreenProps) {
   const self = publicState.players.find(
     (player) => player.id === privateState.playerId,
   );
+  const visibleStartBlockers =
+    host?.startBlockers.filter(
+      (blocker) => blocker !== 'invalid-composition',
+    ) ?? [];
   const [shareMessage, setShareMessage] = useState('');
 
   const share = async () => {
@@ -204,6 +209,7 @@ export function LobbyScreen(props: LobbyScreenProps) {
           <SettingsSummary
             settings={publicState.settings}
             playerCount={publicState.players.length}
+            themeId={publicState.themeId}
           />
         )}
       </div>
@@ -214,9 +220,9 @@ export function LobbyScreen(props: LobbyScreenProps) {
         </p>
         {host ? (
           <>
-            {host.startBlockers.length > 0 ? (
+            {visibleStartBlockers.length > 0 ? (
               <ul className="blocker-list" aria-label="Pendências para iniciar">
-                {host.startBlockers.map((blocker) => (
+                {visibleStartBlockers.map((blocker) => (
                   <li key={blocker}>
                     {startBlockerLabels[blocker] ?? blocker}
                   </li>
@@ -323,6 +329,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
 
   return (
     <section className="panel settings-panel" aria-labelledby="settings-title">
+      <ThemeArtwork themeId={snapshot.public.themeId} />
       <div className="settings-panel__controls">
         <div className="section-heading">
           <div>
@@ -489,12 +496,15 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
 function SettingsSummary({
   settings,
   playerCount,
+  themeId,
 }: {
   settings: RoomSettings;
   playerCount: number;
+  themeId: ThemeId;
 }) {
   return (
     <section className="panel settings-summary" aria-labelledby="rules-title">
+      <ThemeArtwork themeId={themeId} />
       <p className="eyebrow">Definido pelo anfitrião</p>
       <h2 id="rules-title">Regras da partida</h2>
       <dl>
@@ -542,6 +552,19 @@ function SettingsSummary({
       </div>
       <RoleReference />
     </section>
+  );
+}
+
+function ThemeArtwork({ themeId }: { themeId: ThemeId }) {
+  const theme = themeCatalog[themeId];
+  return (
+    <figure className="room-theme-art">
+      <img src={theme.image} alt={`Lobisomem do tema ${theme.name}`} />
+      <figcaption>
+        <strong>{theme.name}</strong>
+        <span>{theme.atmosphere}</span>
+      </figcaption>
+    </figure>
   );
 }
 

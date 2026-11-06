@@ -6,6 +6,7 @@ export function makeSnapshot(
   const snapshot: GameSnapshot = {
     public: {
       roomCode: 'LUAR',
+      themeId: 'autumn-legend',
       status: 'lobby',
       version: 3,
       round: 0,
