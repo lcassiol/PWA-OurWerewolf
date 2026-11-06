@@ -1,6 +1,5 @@
 import type { GameSnapshot, RoleId, RoomSettings } from '@our-werewolf/shared';
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useRef, useState } from 'react';
 import {
   gameRuleCatalog,
   roleCatalog,
@@ -22,6 +21,42 @@ type LobbyScreenProps = {
   onLeave: () => Promise<void>;
   onInstall: () => void;
 };
+
+const startBlockerLabels: Record<string, string> = {
+  'player-count': 'São necessários de 6 a 20 jogadores.',
+  'players-not-ready': 'Todos os jogadores precisam estar prontos.',
+  'invalid-composition': 'A composição de papéis é inválida.',
+  'host-disconnected': 'O anfitrião precisa estar conectado.',
+};
+
+const defensiveRoles = new Set<RoleId>(['witch', 'doctor', 'guardian']);
+
+function balancedRoleSuggestion(playerCount: number): RoleId[] {
+  const targetCount = Math.min(
+    playerCount <= 8 ? 2 : playerCount <= 12 ? 3 : playerCount <= 16 ? 4 : 5,
+    playerCount - werewolfCount(playerCount) - 1,
+  );
+  const maxDefensiveRoles = playerCount <= 12 ? 1 : 2;
+  const shuffled = [...specialRoleIds];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [
+      shuffled[randomIndex]!,
+      shuffled[index]!,
+    ];
+  }
+
+  const suggestion: RoleId[] = [];
+  let defensiveCount = 0;
+  for (const role of shuffled) {
+    if (defensiveRoles.has(role) && defensiveCount >= maxDefensiveRoles)
+      continue;
+    suggestion.push(role);
+    if (defensiveRoles.has(role)) defensiveCount += 1;
+    if (suggestion.length === targetCount) break;
+  }
+  return suggestion;
+}
 
 export function LobbyScreen(props: LobbyScreenProps) {
   const { snapshot, network } = props;
@@ -143,7 +178,6 @@ export function LobbyScreen(props: LobbyScreenProps) {
         {host?.canConfigure ? (
           <SettingsPanel
             snapshot={snapshot}
-            busy={props.busy}
             connected={network === 'connected'}
             onSave={props.onSettings}
           />
@@ -164,7 +198,9 @@ export function LobbyScreen(props: LobbyScreenProps) {
             {host.startBlockers.length > 0 ? (
               <ul className="blocker-list" aria-label="Pendências para iniciar">
                 {host.startBlockers.map((blocker) => (
-                  <li key={blocker}>{blocker}</li>
+                  <li key={blocker}>
+                    {startBlockerLabels[blocker] ?? blocker}
+                  </li>
                 ))}
               </ul>
             ) : null}
@@ -203,17 +239,11 @@ export function LobbyScreen(props: LobbyScreenProps) {
 
 type SettingsPanelProps = {
   snapshot: GameSnapshot;
-  busy: boolean;
   connected: boolean;
   onSave: (settings: RoomSettings) => Promise<void>;
 };
 
-function SettingsPanel({
-  snapshot,
-  busy,
-  connected,
-  onSave,
-}: SettingsPanelProps) {
+function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
   const [minutes, setMinutes] = useState(
     snapshot.public.settings.discussionMinutes,
   );
@@ -221,39 +251,62 @@ function SettingsPanel({
     snapshot.public.settings.allowNoExile,
   );
   const [roles, setRoles] = useState<RoleId[]>(
-    snapshot.public.settings.specialRoles,
+    snapshot.host?.configuredSpecialRoles ??
+      snapshot.public.settings.specialRoles,
   );
+  const [hideSpecialRoles, setHideSpecialRoles] = useState(
+    snapshot.public.settings.hideSpecialRoles,
+  );
+  const [showFinalTimeline, setShowFinalTimeline] = useState(
+    snapshot.public.settings.showFinalTimeline,
+  );
+  const onSaveRef = useRef(onSave);
+  const saveQueue = useRef(Promise.resolve());
+  onSaveRef.current = onSave;
   const playerCount = snapshot.public.players.length;
-  const wolves = werewolfCount(playerCount);
-  const maxSpecials = Math.max(0, playerCount - wolves - 1);
+  const compositionPlayerCount = Math.max(6, playerCount);
+  const wolves = werewolfCount(compositionPlayerCount);
+  const maxSpecials = compositionPlayerCount - wolves - 1;
   const compositionError =
-    playerCount < 6
-      ? `Faltam ${6 - playerCount} pessoas para validar a composição.`
-      : roles.length > maxSpecials
-        ? `Remova ${roles.length - maxSpecials} papel especial para manter ao menos um Aldeão.`
-        : null;
+    roles.length > maxSpecials
+      ? `Remova ${roles.length - maxSpecials} papel especial para manter ao menos um Aldeão.`
+      : null;
 
-  const toggleRole = (role: RoleId) => {
-    setRoles((current) =>
-      current.includes(role)
-        ? current.filter((item) => item !== role)
-        : [...current, role],
-    );
+  const persist = (settings: RoomSettings) => {
+    const save = () => onSaveRef.current(settings);
+    saveQueue.current = saveQueue.current.then(save, save);
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!compositionError)
-      await onSave({
-        discussionMinutes: minutes,
-        allowNoExile,
-        specialRoles: roles,
-      });
+  const toggleRole = (role: RoleId) => {
+    const next = roles.includes(role)
+      ? roles.filter((item) => item !== role)
+      : [...roles, role];
+    setRoles(next);
+    persist({
+      discussionMinutes: minutes,
+      allowNoExile,
+      hideSpecialRoles,
+      showFinalTimeline,
+      specialRoles: next,
+    });
+  };
+
+  const suggestRoles = (hidden: boolean) => {
+    const next = balancedRoleSuggestion(compositionPlayerCount);
+    setRoles(next);
+    setHideSpecialRoles(hidden);
+    persist({
+      discussionMinutes: minutes,
+      allowNoExile,
+      hideSpecialRoles: hidden,
+      showFinalTimeline,
+      specialRoles: next,
+    });
   };
 
   return (
     <section className="panel settings-panel" aria-labelledby="settings-title">
-      <form onSubmit={(event) => void submit(event)}>
+      <div className="settings-panel__controls">
         <div className="section-heading">
           <div>
             <p className="eyebrow">Regras da noite</p>
@@ -268,7 +321,18 @@ function SettingsPanel({
           Discussão diurna
           <select
             value={minutes}
-            onChange={(event) => setMinutes(Number(event.target.value))}
+            disabled={!connected}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              setMinutes(next);
+              persist({
+                discussionMinutes: next,
+                allowNoExile,
+                hideSpecialRoles,
+                showFinalTimeline,
+                specialRoles: roles,
+              });
+            }}
           >
             {[1, 2, 3, 4, 5, 7, 10, 12, 15].map((value) => (
               <option key={value} value={value}>
@@ -286,41 +350,110 @@ function SettingsPanel({
           <input
             type="checkbox"
             checked={allowNoExile}
-            onChange={(event) => setAllowNoExile(event.target.checked)}
+            disabled={!connected}
+            onChange={(event) => {
+              const next = event.target.checked;
+              setAllowNoExile(next);
+              persist({
+                discussionMinutes: minutes,
+                allowNoExile: next,
+                hideSpecialRoles,
+                showFinalTimeline,
+                specialRoles: roles,
+              });
+            }}
+          />
+        </label>
+
+        <label className="switch-row">
+          <span>
+            Exibir linha do tempo decisiva
+            <small>
+              Ao final, mostra as ações e acontecimentos que definiram a
+              partida.
+            </small>
+          </span>
+          <input
+            type="checkbox"
+            checked={showFinalTimeline}
+            disabled={!connected}
+            onChange={(event) => {
+              const next = event.target.checked;
+              setShowFinalTimeline(next);
+              persist({
+                discussionMinutes: minutes,
+                allowNoExile,
+                hideSpecialRoles,
+                showFinalTimeline: next,
+                specialRoles: roles,
+              });
+            }}
           />
         </label>
 
         <fieldset className="role-picker">
           <legend>Papéis especiais</legend>
-          <p>Escolha até {maxSpecials}. Aldeões completam as vagas.</p>
-          <div className="role-grid">
-            {specialRoleIds.map((roleId) => {
-              const role = roleCatalog[roleId];
-              return (
-                <label
-                  className={
-                    roles.includes(roleId)
-                      ? 'role-option is-selected'
-                      : 'role-option'
-                  }
-                  key={roleId}
-                >
-                  <input
-                    type="checkbox"
-                    checked={roles.includes(roleId)}
-                    onChange={() => toggleRole(roleId)}
-                  />
-                  <span className="role-option__mark" aria-hidden="true">
-                    {role.mark}
-                  </span>
-                  <span>
-                    {role.name}
-                    <small>{role.short}</small>
-                  </span>
-                </label>
-              );
-            })}
+          <div className="role-picker-intro">
+            <p>Escolha até {maxSpecials}. Aldeões completam as vagas.</p>
+            <div className="role-picker-actions">
+              <button
+                className="role-suggestion-button"
+                type="button"
+                disabled={!connected || maxSpecials === 0}
+                onClick={() => suggestRoles(false)}
+              >
+                Sugerir papéis aleatórios
+              </button>
+              <button
+                className="role-suggestion-button"
+                type="button"
+                aria-pressed={hideSpecialRoles}
+                disabled={!connected || maxSpecials === 0}
+                onClick={() => suggestRoles(true)}
+              >
+                Modo Oculto
+              </button>
+            </div>
           </div>
+          {hideSpecialRoles ? (
+            <p className="hidden-roles-status">
+              Modo oculto ativo. Uma composição equilibrada foi salva sem
+              revelar os papéis.
+            </p>
+          ) : (
+            <div className="role-grid">
+              {specialRoleIds.map((roleId) => {
+                const role = roleCatalog[roleId];
+                return (
+                  <label
+                    className={
+                      roles.includes(roleId)
+                        ? 'role-option is-selected'
+                        : 'role-option'
+                    }
+                    key={roleId}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={roles.includes(roleId)}
+                      disabled={
+                        !connected ||
+                        (!roles.includes(roleId) && roles.length >= maxSpecials)
+                      }
+                      onChange={() => toggleRole(roleId)}
+                    />
+                    <span className="role-option__mark" aria-hidden="true">
+                      {role.mark}
+                    </span>
+                    <span>
+                      {role.name}
+                      <small>{role.short}</small>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </fieldset>
 
         <RoleReference />
@@ -328,14 +461,10 @@ function SettingsPanel({
         <p className="form-message" role="alert">
           {compositionError}
         </p>
-        <button
-          className="secondary-button"
-          type="submit"
-          disabled={busy || !connected || Boolean(compositionError)}
-        >
-          Salvar configuração
-        </button>
-      </form>
+        <p className="settings-autosave-note" role="status">
+          Alterações são salvas automaticamente.
+        </p>
+      </div>
     </section>
   );
 }
@@ -361,22 +490,39 @@ function SettingsSummary({
           <dd>{werewolfCount(playerCount)}</dd>
         </div>
         <div>
-          <dt>Sem expulsão</dt>
-          <dd>{settings.allowNoExile ? 'Permitido' : 'Não permitido'}</dd>
+          <dt>A vila pode encerrar o dia sem eliminação:</dt>
+          <dd>{settings.allowNoExile ? 'Sim' : 'Não'}</dd>
         </div>
         <div>
           <dt>Especiais</dt>
-          <dd>{settings.specialRoles.length}</dd>
+          <dd>
+            {settings.hideSpecialRoles
+              ? 'Ocultos'
+              : settings.specialRoles.length}
+          </dd>
+        </div>
+        <div>
+          <dt>Exibir linha do tempo decisiva:</dt>
+          <dd>{settings.showFinalTimeline ? 'Sim' : 'Não'}</dd>
         </div>
       </dl>
-      <details className="role-catalog">
-        <summary>Ver papéis selecionados</summary>
-        <ul>
-          {settings.specialRoles.map((role) => (
-            <li key={role}>{roleCatalog[role].name}</li>
-          ))}
-        </ul>
-      </details>
+      <div className="selected-roles" aria-label="Papéis selecionados">
+        <h3>Papéis selecionados</h3>
+        {settings.hideSpecialRoles ? (
+          <p>O anfitrião manteve a composição em segredo.</p>
+        ) : settings.specialRoles.length > 0 ? (
+          <ul>
+            {settings.specialRoles.map((role) => (
+              <li key={role}>
+                <span aria-hidden="true">{roleCatalog[role].mark}</span>
+                {roleCatalog[role].name}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>Nenhum papel especial selecionado.</p>
+        )}
+      </div>
       <RoleReference />
     </section>
   );

@@ -29,6 +29,8 @@ type RoomRow = {
   status: 'lobby' | 'playing' | 'finished';
   discussion_minutes: number;
   allow_no_exile: number;
+  hide_special_roles: number;
+  show_final_timeline: number;
   special_roles_json: string;
   version: number;
   expires_at: string;
@@ -142,6 +144,8 @@ function parseSettings(value: unknown): RoomSettings {
     Number(candidate.discussionMinutes) < 1 ||
     Number(candidate.discussionMinutes) > 15 ||
     typeof candidate.allowNoExile !== 'boolean' ||
+    typeof candidate.hideSpecialRoles !== 'boolean' ||
+    typeof candidate.showFinalTimeline !== 'boolean' ||
     !Array.isArray(candidate.specialRoles) ||
     !candidate.specialRoles.every(
       (role) => typeof role === 'string' && roleIds.has(role as RoleId),
@@ -151,6 +155,8 @@ function parseSettings(value: unknown): RoomSettings {
   return {
     discussionMinutes: Number(candidate.discussionMinutes),
     allowNoExile: candidate.allowNoExile,
+    hideSpecialRoles: candidate.hideSpecialRoles,
+    showFinalTimeline: candidate.showFinalTimeline,
     specialRoles: [...new Set(candidate.specialRoles as RoleId[])],
   };
 }
@@ -212,6 +218,8 @@ function settingsFromRoom(room: RoomRow): RoomSettings {
   return {
     discussionMinutes: room.discussion_minutes,
     allowNoExile: room.allow_no_exile === 1,
+    hideSpecialRoles: room.hide_special_roles === 1,
+    showFinalTimeline: room.show_final_timeline === 1,
     specialRoles: JSON.parse(room.special_roles_json) as RoleId[],
   };
 }
@@ -282,7 +290,7 @@ export class GameService {
           this.database
             .prepare(
               `INSERT INTO rooms
-            (id, code, created_at, expires_at) VALUES (?, ?, ?, ?)`,
+            (id, code, allow_no_exile, created_at, expires_at) VALUES (?, ?, 0, ?, ?)`,
             )
             .run(
               roomId,
@@ -508,11 +516,13 @@ export class GameService {
       );
       this.database
         .prepare(
-          `UPDATE rooms SET discussion_minutes = ?, allow_no_exile = ?, special_roles_json = ?, version = version + 1 WHERE id = ?`,
+          `UPDATE rooms SET discussion_minutes = ?, allow_no_exile = ?, hide_special_roles = ?, show_final_timeline = ?, special_roles_json = ?, version = version + 1 WHERE id = ?`,
         )
         .run(
           settings.discussionMinutes,
           settings.allowNoExile ? 1 : 0,
+          settings.hideSpecialRoles ? 1 : 0,
+          settings.showFinalTimeline ? 1 : 0,
           JSON.stringify(settings.specialRoles),
           room.id,
         );
@@ -820,6 +830,81 @@ export class GameService {
     return { duplicate, snapshot: this.project(identity) };
   }
 
+  markReadyForVote(identity: Identity): GameSnapshot {
+    let changed = false;
+    let advanced = false;
+    inTransaction(this.database, () => {
+      const game = this.getGame(identity.roomId);
+      assert(
+        game.status === 'active' && game.phase === 'discussion',
+        409,
+        'phase_closed',
+        'The discussion is no longer active',
+      );
+      assert(
+        !game.deadline || game.deadline > this.now().toISOString(),
+        409,
+        'phase_closed',
+        'The discussion deadline has passed',
+      );
+      const phase = row<PhaseRow>(
+        this.database
+          .prepare(
+            "SELECT * FROM phases WHERE game_id = ? AND kind = 'discussion' AND closed_at IS NULL",
+          )
+          .get(game.id),
+      );
+      assert(phase, 409, 'phase_closed', 'The discussion is no longer active');
+      const assignment = row<AssignmentRow>(
+        this.database
+          .prepare(
+            'SELECT participant_id, role, alignment, alive, resources_json FROM assignments WHERE game_id = ? AND participant_id = ?',
+          )
+          .get(game.id, identity.participantId),
+      );
+      assert(
+        assignment?.alive === 1,
+        403,
+        'forbidden',
+        'Only living players can get ready to vote',
+      );
+      const inserted = this.database
+        .prepare(
+          `INSERT OR IGNORE INTO actions
+            (id, game_id, phase_id, participant_id, action_type, targets_json, submitted_at)
+           VALUES (?, ?, ?, ?, 'discussion-ready', '[]', ?)`,
+        )
+        .run(
+          randomUUID(),
+          game.id,
+          phase.id,
+          identity.participantId,
+          this.now().toISOString(),
+        );
+      if (inserted.changes === 0) return;
+      changed = true;
+      const readiness = this.discussionReadiness(
+        game.id,
+        phase.id,
+        identity.participantId,
+      );
+      if (readiness.readyCount >= readiness.requiredCount) {
+        advanced = this.advancePhase(phase, 'complete');
+      } else {
+        this.bumpGameVersion(game.id, game.room_id, {
+          phase: game.phase,
+          round: game.round,
+          deadline: game.deadline,
+        });
+      }
+    });
+    if (changed) {
+      if (advanced) this.metrics.transitions += 1;
+      this.roomChanged(identity.roomCode);
+    }
+    return this.project(identity);
+  }
+
   project(identity: Identity): GameSnapshot {
     const room = this.getRoom(identity.roomId);
     const participants = this.getParticipants(room.id);
@@ -850,8 +935,15 @@ export class GameService {
       assignments.map((item) => [item.participant_id, item.alive === 1]),
     );
     const settings = game
-      ? (JSON.parse(game.frozen_settings_json) as RoomSettings)
+      ? ({
+          hideSpecialRoles: false,
+          showFinalTimeline: true,
+          ...(JSON.parse(game.frozen_settings_json) as Partial<RoomSettings>),
+        } as RoomSettings)
       : settingsFromRoom(room);
+    const publicSettings = settings.hideSpecialRoles
+      ? { ...settings, specialRoles: [] }
+      : settings;
     const announcements = game
       ? this.publicAnnouncements(game.id, participants)
       : [];
@@ -860,6 +952,20 @@ export class GameService {
     const availableAction =
       game && assignment
         ? this.availableAction(game, assignment, assignments, settings)
+        : null;
+    const discussionReadiness =
+      game?.phase === 'discussion'
+        ? this.discussionReadiness(
+            game.id,
+            row<{ id: string }>(
+              this.database
+                .prepare(
+                  "SELECT id FROM phases WHERE game_id = ? AND kind = 'discussion' AND closed_at IS NULL",
+                )
+                .get(game.id),
+            )?.id ?? '',
+            identity.participantId,
+          )
         : null;
     const personalWinner = game
       ? Boolean(
@@ -889,7 +995,13 @@ export class GameService {
             participant.connected === 1 ? 'connected' : 'disconnected',
           host: participant.is_host === 1,
         })),
-        settings,
+        settings: publicSettings,
+        discussionReadiness: discussionReadiness
+          ? {
+              readyCount: discussionReadiness.readyCount,
+              requiredCount: discussionReadiness.requiredCount,
+            }
+          : null,
         announcements,
         winner: game?.winner ?? null,
       },
@@ -906,6 +1018,7 @@ export class GameService {
             >)
           : {},
         availableAction,
+        readyForVote: discussionReadiness?.selfReady ?? false,
         personalWinner,
       },
       host: identity.isHost
@@ -913,6 +1026,7 @@ export class GameService {
             canConfigure: room.status === 'lobby',
             canStart: room.status === 'lobby' && blockers.length === 0,
             startBlockers: blockers,
+            configuredSpecialRoles: settings.specialRoles,
           }
         : null,
     };
@@ -933,23 +1047,52 @@ export class GameService {
         role: item.role,
         winner: winners.has(item.participant_id),
       }));
-      snapshot.finalEvents = rows<{
-        sequence: number;
-        effect_type: string;
-        data_json: string;
-      }>(
-        this.database
-          .prepare(
-            "SELECT sequence, effect_type, data_json FROM effects WHERE game_id = ? AND visibility != 'private' ORDER BY sequence",
-          )
-          .all(game.id),
-      ).map((effect) => ({
-        sequence: effect.sequence,
-        type: effect.effect_type,
-        data: JSON.parse(effect.data_json) as Record<string, unknown>,
-      }));
+      if (settings.showFinalTimeline !== false)
+        snapshot.finalEvents = rows<{
+          sequence: number;
+          effect_type: string;
+          data_json: string;
+        }>(
+          this.database
+            .prepare(
+              "SELECT sequence, effect_type, data_json FROM effects WHERE game_id = ? AND visibility != 'private' ORDER BY sequence",
+            )
+            .all(game.id),
+        ).map((effect) => ({
+          sequence: effect.sequence,
+          type: effect.effect_type,
+          data: JSON.parse(effect.data_json) as Record<string, unknown>,
+        }));
     }
     return snapshot;
+  }
+
+  private discussionReadiness(
+    gameId: string,
+    phaseId: string,
+    participantId: string,
+  ): { readyCount: number; requiredCount: number; selfReady: boolean } {
+    const aliveCount = row<{ count: number }>(
+      this.database
+        .prepare(
+          'SELECT count(*) AS count FROM assignments WHERE game_id = ? AND alive = 1',
+        )
+        .get(gameId),
+    )?.count;
+    const ready = rows<{ participant_id: string }>(
+      this.database
+        .prepare(
+          `SELECT a.participant_id FROM actions a
+           JOIN assignments s ON s.game_id = a.game_id AND s.participant_id = a.participant_id
+           WHERE a.phase_id = ? AND a.action_type = 'discussion-ready' AND s.alive = 1`,
+        )
+        .all(phaseId),
+    );
+    return {
+      readyCount: ready.length,
+      requiredCount: Math.floor((aliveCount ?? 0) / 2) + 1,
+      selfReady: ready.some((item) => item.participant_id === participantId),
+    };
   }
 
   setConnected(identity: Identity, connected: boolean): void {
@@ -2171,6 +2314,16 @@ export class GameService {
         )
         .all(gameId),
     );
+    const noExileReasons: Record<string, string> = {
+      'no-exile': 'opção sem expulsão',
+      tie: 'empate',
+      'no-votes': 'sem votos',
+    };
+    const winners: Record<string, string> = {
+      village: 'da Vila',
+      werewolves: 'dos Lobisomens',
+      lovers: 'dos Amantes',
+    };
     return effects.map((effect) => {
       const data = JSON.parse(effect.data_json) as {
         participantId?: string;
@@ -2179,16 +2332,17 @@ export class GameService {
         reason?: string;
       };
       if (effect.effect_type === 'elimination')
-        return `${names.get(data.participantId ?? '') ?? 'A player'} was eliminated.`;
-      if (effect.effect_type === 'no-exile') return 'No player was exiled.';
+        return `${names.get(data.participantId ?? '') ?? 'Um jogador'} foi eliminado.`;
+      if (effect.effect_type === 'no-exile')
+        return 'Nenhum jogador foi expulso.';
       if (effect.effect_type === 'day-vote-result') {
         return data.exiledPlayerId
-          ? `${names.get(data.exiledPlayerId) ?? 'A player'} was exiled.`
-          : `No player was exiled (${data.reason ?? 'no result'}).`;
+          ? `${names.get(data.exiledPlayerId) ?? 'Um jogador'} foi expulso.`
+          : `Nenhum jogador foi expulso (${noExileReasons[data.reason ?? ''] ?? 'sem resultado'}).`;
       }
       if (effect.effect_type === 'game-finished')
-        return `Game finished: ${data.winner ?? 'unknown'}.`;
-      return 'The game state changed.';
+        return `Partida encerrada: vitória ${winners[data.winner ?? ''] ?? 'com resultado desconhecido'}.`;
+      return 'O estado da partida mudou.';
     });
   }
 

@@ -64,8 +64,11 @@ export function makeSnapshot(
       settings: {
         discussionMinutes: 5,
         allowNoExile: true,
+        hideSpecialRoles: false,
+        showFinalTimeline: true,
         specialRoles: ['seer'],
       },
+      discussionReadiness: null,
       announcements: [],
       winner: null,
     },
@@ -77,12 +80,14 @@ export function makeSnapshot(
       knownPlayers: [],
       resources: {},
       availableAction: null,
+      readyForVote: false,
       personalWinner: false,
     },
     host: {
       canConfigure: true,
       canStart: false,
       startBlockers: ['Iara ainda não está pronta.'],
+      configuredSpecialRoles: ['seer'],
     },
   };
 

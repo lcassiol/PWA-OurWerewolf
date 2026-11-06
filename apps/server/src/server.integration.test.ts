@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { WebSocket, type RawData } from 'ws';
-import type { GameSnapshot } from './contracts.js';
+import type { GameSnapshot, RoomSettings } from './contracts.js';
 import { loadConfig, type ServerConfig } from './env.js';
 import { createLogger } from './logger.js';
 import { clientAddress, createApplication } from './server.js';
@@ -155,6 +155,7 @@ void test('room edge cases preserve authorization and frozen lobby state', async
     const otherRoom = await createRoom(application, 'Host B');
     assert.equal(host.snapshot.public.roomCode, 'CLSH');
     assert.equal(otherRoom.snapshot.public.roomCode, 'NEXT');
+    assert.equal(host.snapshot.public.settings.allowNoExile, false);
     const code = host.snapshot.public.roomCode;
     hostSocket = await connectMember(application, host);
 
@@ -190,21 +191,32 @@ void test('room edge cases preserve authorization and frozen lobby state', async
       body: JSON.stringify({
         discussionMinutes: 7,
         allowNoExile: false,
+        hideSpecialRoles: true,
+        showFinalTimeline: true,
         specialRoles: ['seer'],
       }),
     });
     assert.equal(saved.status, 200);
-    assert.equal(
-      (await json<{ snapshot: GameSnapshot }>(saved)).snapshot.public.settings
-        .discussionMinutes,
-      7,
-    );
+    const savedSnapshot = (await json<{ snapshot: GameSnapshot }>(saved))
+      .snapshot;
+    assert.equal(savedSnapshot.public.settings.discussionMinutes, 7);
+    assert.equal(savedSnapshot.public.settings.allowNoExile, false);
+    assert.equal(savedSnapshot.public.settings.hideSpecialRoles, true);
+    assert.deepEqual(savedSnapshot.public.settings.specialRoles, []);
+    assert.deepEqual(savedSnapshot.host?.configuredSpecialRoles, ['seer']);
+    const guestSettings = (await getSnapshot(application, code, guest)).public
+      .settings;
+    assert.equal(guestSettings.allowNoExile, false);
+    assert.equal(guestSettings.hideSpecialRoles, true);
+    assert.deepEqual(guestSettings.specialRoles, []);
     const forbidden = await request(application, `/rooms/${code}/settings`, {
       method: 'PATCH',
       headers: { cookie: guest.cookie },
       body: JSON.stringify({
         discussionMinutes: 1,
         allowNoExile: true,
+        hideSpecialRoles: false,
+        showFinalTimeline: true,
         specialRoles: [],
       }),
     });
@@ -271,6 +283,18 @@ void test('room edge cases preserve authorization and frozen lobby state', async
       ).count,
       1,
     );
+    const frozenSettings = JSON.parse(
+      (
+        application.database
+          .prepare('SELECT frozen_settings_json FROM games')
+          .get() as { frozen_settings_json: string }
+      ).frozen_settings_json,
+    ) as RoomSettings;
+    assert.deepEqual(frozenSettings.specialRoles, ['seer']);
+    const playingGuestSettings = (await getSnapshot(application, code, guest))
+      .public.settings;
+    assert.equal(playingGuestSettings.hideSpecialRoles, true);
+    assert.deepEqual(playingGuestSettings.specialRoles, []);
     const lateJoin = await request(application, `/rooms/${code}/join`, {
       method: 'POST',
       body: JSON.stringify({ nickname: 'Too Late' }),
@@ -283,6 +307,8 @@ void test('room edge cases preserve authorization and frozen lobby state', async
       body: JSON.stringify({
         discussionMinutes: 1,
         allowNoExile: true,
+        hideSpecialRoles: false,
+        showFinalTimeline: true,
         specialRoles: [],
       }),
     });

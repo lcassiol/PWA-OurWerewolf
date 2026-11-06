@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { HomeScreen } from './HomeScreen';
@@ -69,9 +69,19 @@ describe('lobby', () => {
     const user = userEvent.setup();
     const onReady = vi.fn().mockResolvedValue(undefined);
     const onSettings = vi.fn().mockResolvedValue(undefined);
+    const snapshot = makeSnapshot();
+    snapshot.public.settings.allowNoExile = false;
+    snapshot.host = {
+      ...snapshot.host!,
+      startBlockers: [
+        'player-count',
+        'players-not-ready',
+        'invalid-composition',
+      ],
+    };
     render(
       <LobbyScreen
-        snapshot={makeSnapshot()}
+        snapshot={snapshot}
         network="connected"
         busy={false}
         message={null}
@@ -87,10 +97,15 @@ describe('lobby', () => {
     expect(
       screen.getByRole('button', { name: 'Compartilhar sala LUAR' }),
     ).toBeInTheDocument();
+    const blockers = within(screen.getByLabelText('Pendências para iniciar'));
     expect(
-      within(screen.getByLabelText('Pendências para iniciar')).getByText(
-        /Iara/,
-      ),
+      blockers.getByText('São necessários de 6 a 20 jogadores.'),
+    ).toBeInTheDocument();
+    expect(
+      blockers.getByText('Todos os jogadores precisam estar prontos.'),
+    ).toBeInTheDocument();
+    expect(
+      blockers.getByText('A composição de papéis é inválida.'),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Começar a crônica' }),
@@ -98,17 +113,118 @@ describe('lobby', () => {
     expect(
       screen.getByRole('button', { name: 'Remover Bento' }),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Permitir “não expulsar”/)).not.toBeChecked();
+    expect(
+      screen.getByLabelText(/Exibir linha do tempo decisiva/),
+    ).toBeChecked();
 
     await user.click(screen.getByRole('button', { name: 'Estou pronto' }));
     expect(onReady).toHaveBeenCalledWith(true);
 
     await user.selectOptions(screen.getByLabelText('Discussão diurna'), '7');
     await user.click(screen.getByLabelText(/Vidente/));
-    await user.click(
-      screen.getByRole('button', { name: 'Salvar configuração' }),
+    await waitFor(() =>
+      expect(onSettings).toHaveBeenLastCalledWith(
+        expect.objectContaining({ discussionMinutes: 7, specialRoles: [] }),
+      ),
     );
-    expect(onSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ discussionMinutes: 7, specialRoles: [] }),
+    await user.click(screen.getByLabelText(/Exibir linha do tempo decisiva/));
+    await waitFor(() =>
+      expect(onSettings).toHaveBeenLastCalledWith(
+        expect.objectContaining({ showFinalTimeline: false }),
+      ),
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Salvar configuração' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('sugere uma composição aleatória válida de papéis especiais', async () => {
+    const user = userEvent.setup();
+    const onSettings = vi.fn().mockResolvedValue(undefined);
+    render(
+      <LobbyScreen
+        snapshot={makeSnapshot()}
+        network="connected"
+        busy={false}
+        message={null}
+        onReady={vi.fn()}
+        onSettings={onSettings}
+        onStart={vi.fn()}
+        onRemove={vi.fn()}
+        onLeave={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Sugerir papéis aleatórios' }),
+    );
+    expect(
+      within(screen.getByRole('group', { name: 'Papéis especiais' }))
+        .getAllByRole('checkbox')
+        .filter((checkbox) => (checkbox as HTMLInputElement).checked),
+    ).toHaveLength(2);
+    await waitFor(() => expect(onSettings).toHaveBeenCalledOnce());
+  });
+
+  it('sorteia uma composição equilibrada sem revelar os papéis no modo oculto', async () => {
+    const user = userEvent.setup();
+    const onSettings = vi.fn().mockResolvedValue(undefined);
+    render(
+      <LobbyScreen
+        snapshot={makeSnapshot()}
+        network="connected"
+        busy={false}
+        message={null}
+        onReady={vi.fn()}
+        onSettings={onSettings}
+        onStart={vi.fn()}
+        onRemove={vi.fn()}
+        onLeave={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Modo Oculto' }));
+
+    expect(screen.queryByLabelText(/Vidente/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Modo oculto ativo/)).toBeInTheDocument();
+    await waitFor(() => {
+      const settings = onSettings.mock.calls[0]?.[0];
+      expect(settings).toEqual(
+        expect.objectContaining({ hideSpecialRoles: true }),
+      );
+      expect(settings?.specialRoles).toHaveLength(2);
+    });
+  });
+
+  it('permite ao anfitrião desativar a opção antes de seis jogadores entrarem', async () => {
+    const user = userEvent.setup();
+    const onSettings = vi.fn().mockResolvedValue(undefined);
+    const snapshot = makeSnapshot();
+    snapshot.public.players = snapshot.public.players.slice(0, 1);
+    snapshot.public.settings.allowNoExile = true;
+    render(
+      <LobbyScreen
+        snapshot={snapshot}
+        network="connected"
+        busy={false}
+        message={null}
+        onReady={vi.fn()}
+        onSettings={onSettings}
+        onStart={vi.fn()}
+        onRemove={vi.fn()}
+        onLeave={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByLabelText(/Permitir “não expulsar”/));
+    await waitFor(() =>
+      expect(onSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ allowNoExile: false }),
+      ),
     );
   });
 
@@ -117,26 +233,62 @@ describe('lobby', () => {
       host: null,
       private: { ...makeSnapshot().private, playerId: 'p2' },
     });
-    render(
-      <LobbyScreen
-        snapshot={snapshot}
-        network="connected"
-        busy={false}
-        message={null}
-        onReady={vi.fn()}
-        onSettings={vi.fn()}
-        onStart={vi.fn()}
-        onRemove={vi.fn()}
-        onLeave={vi.fn()}
-        onInstall={vi.fn()}
-      />,
-    );
+    const props = {
+      network: 'connected' as const,
+      busy: false,
+      message: null,
+      onReady: vi.fn(),
+      onSettings: vi.fn(),
+      onStart: vi.fn(),
+      onRemove: vi.fn(),
+      onLeave: vi.fn(),
+      onInstall: vi.fn(),
+    };
+    const { rerender } = render(<LobbyScreen snapshot={snapshot} {...props} />);
 
     expect(
       screen.getByRole('heading', { name: 'Regras da partida' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Remover/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText('A vila pode encerrar o dia sem eliminação:'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Sim')).toHaveLength(2);
+    expect(
+      within(screen.getByLabelText('Papéis selecionados')).getByText('Vidente'),
+    ).toBeVisible();
+    expect(
+      screen.queryByText('Ver papéis selecionados'),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <LobbyScreen
+        snapshot={makeSnapshot({
+          host: null,
+          private: { ...makeSnapshot().private, playerId: 'p2' },
+          public: {
+            ...makeSnapshot().public,
+            settings: {
+              ...makeSnapshot().public.settings,
+              allowNoExile: false,
+              hideSpecialRoles: true,
+              specialRoles: [],
+            },
+          },
+        })}
+        {...props}
+      />,
+    );
+    expect(screen.getByText('Não')).toBeInTheDocument();
+    expect(
+      screen.getByText('O anfitrião manteve a composição em segredo.'),
+    ).toBeVisible();
+    expect(
+      within(screen.getByLabelText('Papéis selecionados')).queryByText(
+        'Vidente',
+      ),
     ).not.toBeInTheDocument();
   });
 

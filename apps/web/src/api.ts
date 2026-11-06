@@ -88,6 +88,10 @@ export const api = {
     snapshotRequest(`/rooms/${encodeURIComponent(roomCode)}/start`, {
       method: 'POST',
     }),
+  markReadyForVote: (roomCode: string) =>
+    snapshotRequest(`/rooms/${encodeURIComponent(roomCode)}/vote-ready`, {
+      method: 'POST',
+    }),
   removePlayer: (roomCode: string, playerId: string) =>
     snapshotRequest(
       `/rooms/${encodeURIComponent(roomCode)}/participants/${encodeURIComponent(playerId)}`,

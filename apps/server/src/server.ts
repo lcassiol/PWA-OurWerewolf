@@ -202,7 +202,7 @@ export function createApplication(options: CreateApplicationOptions) {
     }
 
     const roomMatch = url.pathname.match(
-      /^\/rooms\/([A-Za-z]{4})(?:\/(snapshot|reconnect|settings|ready|start|commands|session))?$/,
+      /^\/rooms\/([A-Za-z]{4})(?:\/(snapshot|reconnect|settings|ready|vote-ready|start|commands|session))?$/,
     );
     const removeMatch = url.pathname.match(
       /^\/rooms\/([A-Za-z]{4})\/participants\/([0-9a-f-]{36})$/i,
@@ -231,6 +231,12 @@ export function createApplication(options: CreateApplicationOptions) {
         const body = (await readJson(request)) as Record<string, unknown>;
         sendJson(response, 200, {
           snapshot: service.setReady(identity, body.ready),
+        });
+        return;
+      }
+      if (resource === 'vote-ready' && method === 'POST') {
+        sendJson(response, 200, {
+          snapshot: service.markReadyForVote(identity),
         });
         return;
       }

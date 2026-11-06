@@ -226,6 +226,12 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         busy={busy}
         message={message}
         onCommand={sendCommand}
+        onReadyForVote={() =>
+          run(
+            () => apiClient.markReadyForVote(snapshot.public.roomCode),
+            'Você está pronto para votar.',
+          )
+        }
         onInstall={() => installState.setOpen(true)}
       />
     );

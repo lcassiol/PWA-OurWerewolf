@@ -54,12 +54,9 @@ COOKIE_SECURE=false
 DATABASE_PATH=./data/our-werewolf.sqlite
 ```
 
-4. Carregue as variaveis no terminal e inicie cliente e servidor:
+4. Inicie cliente e servidor. O backend carrega automaticamente o `.env` da raiz:
 
 ```sh
-set -a
-source .env
-set +a
 npm run dev
 ```
 

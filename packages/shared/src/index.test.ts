@@ -8,11 +8,15 @@ describe('shared contracts', () => {
       parseRoomSettings({
         discussionMinutes: 5,
         allowNoExile: true,
+        hideSpecialRoles: false,
+        showFinalTimeline: true,
         specialRoles: ['seer', 'seer', 'witch'],
       }),
     ).toEqual({
       discussionMinutes: 5,
       allowNoExile: true,
+      hideSpecialRoles: false,
+      showFinalTimeline: true,
       specialRoles: ['seer', 'witch'],
     });
     expect(() => parseRoomSettings({ discussionMinutes: 0 })).toThrow();
@@ -31,8 +35,11 @@ describe('shared contracts', () => {
         settings: {
           discussionMinutes: 5,
           allowNoExile: true,
+          hideSpecialRoles: false,
+          showFinalTimeline: true,
           specialRoles: [],
         },
+        discussionReadiness: null,
         announcements: [],
         winner: null,
       },
@@ -44,6 +51,7 @@ describe('shared contracts', () => {
         knownPlayers: [],
         resources: {},
         availableAction: null,
+        readyForVote: false,
         personalWinner: false,
       },
       host: null,

@@ -14,6 +14,7 @@ function mockApi(): ApiClient {
     setReady: vi.fn().mockResolvedValue(makeSnapshot()),
     updateSettings: vi.fn().mockResolvedValue(makeSnapshot()),
     startGame: vi.fn().mockResolvedValue(makeSnapshot()),
+    markReadyForVote: vi.fn().mockResolvedValue(makeSnapshot()),
     removePlayer: vi.fn().mockResolvedValue(makeSnapshot()),
     leaveRoom: vi.fn().mockResolvedValue(undefined),
     sendCommand: vi.fn().mockResolvedValue(makeSnapshot()),

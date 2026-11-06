@@ -93,6 +93,12 @@ describe('cliente HTTP', () => {
       '/api/rooms/LUAR/ready',
       expect.objectContaining({ method: 'PATCH' }),
     );
+
+    await api.markReadyForVote('LUAR');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/rooms/LUAR/vote-ready',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
   it('preserva o status de uma resposta de autorização sem JSON', async () => {

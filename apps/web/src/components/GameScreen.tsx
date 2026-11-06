@@ -1,6 +1,7 @@
 import type {
   ActionChoice,
   AvailableAction,
+  FinalEvent,
   GameCommand,
   GameSnapshot,
   PlayerSummary,
@@ -20,6 +21,7 @@ type GameScreenProps = {
   busy: boolean;
   message: string | null;
   onCommand: (command: GameCommand) => Promise<boolean>;
+  onReadyForVote: () => Promise<void>;
   onInstall: () => void;
 };
 
@@ -30,6 +32,7 @@ export function GameScreen({
   busy,
   message,
   onCommand,
+  onReadyForVote,
   onInstall,
 }: GameScreenProps) {
   const publicState = snapshot.public;
@@ -48,6 +51,9 @@ export function GameScreen({
 
   const currentPhase = publicState.phase;
   const phase = phaseCopy[currentPhase];
+  const selfAlive = publicState.players.find(
+    (player) => player.id === snapshot.private.playerId,
+  )?.alive;
 
   return (
     <main className="app-shell game-shell" id="main-content">
@@ -100,6 +106,14 @@ export function GameScreen({
         <section className="panel phase-panel" aria-labelledby="action-title">
           {currentPhase === 'dawn' || currentPhase === 'day-resolution' ? (
             <AnnouncementPanel snapshot={snapshot} />
+          ) : currentPhase === 'discussion' ? (
+            <DiscussionPanel
+              readiness={publicState.discussionReadiness}
+              ready={snapshot.private.readyForVote}
+              canReady={Boolean(selfAlive)}
+              disabled={busy || network !== 'connected'}
+              onReady={onReadyForVote}
+            />
           ) : !privateFresh || network !== 'connected' ? (
             <PrivateUnavailablePanel network={network} />
           ) : snapshot.private.availableAction ? (
@@ -415,6 +429,51 @@ function WaitingPanel({ phase }: { phase: GameSnapshot['public']['phase'] }) {
   );
 }
 
+function DiscussionPanel({
+  readiness,
+  ready,
+  canReady,
+  disabled,
+  onReady,
+}: {
+  readiness: GameSnapshot['public']['discussionReadiness'];
+  ready: boolean;
+  canReady: boolean;
+  disabled: boolean;
+  onReady: () => Promise<void>;
+}) {
+  return (
+    <div className="waiting-panel discussion-ready-panel">
+      <span className="waiting-glyph" aria-hidden="true">
+        ☼
+      </span>
+      <p className="eyebrow">Converse frente a frente</p>
+      <h2 id="action-title">Escute. Desconfie. Convença.</h2>
+      <p>
+        A votação começa quando a maioria estiver pronta ou quando o tempo
+        terminar.
+      </p>
+      {readiness ? (
+        <p className="discussion-ready-count" aria-live="polite">
+          {readiness.readyCount} de {readiness.requiredCount} prontos para votar
+        </p>
+      ) : null}
+      {canReady ? (
+        <button
+          className={ready ? 'secondary-button' : 'primary-button'}
+          type="button"
+          disabled={disabled || ready}
+          onClick={() => void onReady()}
+        >
+          {ready ? 'Pronto para votar' : 'Estou pronto para votar'}
+        </button>
+      ) : (
+        <p>Jogadores eliminados acompanham a decisão da vila.</p>
+      )}
+    </div>
+  );
+}
+
 function AliveList({ players }: { players: PlayerSummary[] }) {
   return (
     <section className="village-strip" aria-labelledby="village-title">
@@ -511,10 +570,11 @@ function FinalScreen({
           <h2 id="events-title">Linha do tempo decisiva</h2>
           <ol>
             {snapshot.finalEvents.map((event) => (
-              <li key={`${event.sequence}-${event.type}`}>
-                <strong>{event.type}</strong>
-                <span>{describeFinalEvent(event.data, snapshot)}</span>
-              </li>
+              <FinalEventItem
+                event={event}
+                snapshot={snapshot}
+                key={`${event.sequence}-${event.type}`}
+              />
             ))}
           </ol>
         </section>
@@ -530,23 +590,145 @@ function FinalScreen({
   );
 }
 
+function FinalEventItem({
+  event,
+  snapshot,
+}: {
+  event: FinalEvent;
+  snapshot: GameSnapshot;
+}) {
+  const copy = describeFinalEvent(event, snapshot);
+  return (
+    <li>
+      <strong>{copy.title}</strong>
+      <span>{copy.description}</span>
+    </li>
+  );
+}
+
 function describeFinalEvent(
-  data: Record<string, unknown>,
+  event: FinalEvent,
   snapshot: GameSnapshot,
-): string {
-  const playerId =
-    typeof data.participantId === 'string' ? data.participantId : null;
-  const causedById =
-    typeof data.causedById === 'string' ? data.causedById : null;
+): { title: string; description: string } {
+  const { data } = event;
   const name = (id: string | null) =>
-    snapshot.public.players.find((player) => player.id === id)?.nickname ?? id;
-  const details = [
-    playerId ? name(playerId) : null,
-    typeof data.cause === 'string' ? data.cause : null,
-    causedById ? `por ${name(causedById)}` : null,
-    typeof data.winner === 'string' ? data.winner : null,
-  ].filter(Boolean);
-  return details.length > 0 ? `: ${details.join(' ')}` : '';
+    snapshot.public.players.find((player) => player.id === id)?.nickname ??
+    'Um jogador';
+  const id = (key: string) =>
+    typeof data[key] === 'string' ? (data[key] as string) : null;
+  const participant = name(id('participantId'));
+
+  if (event.type === 'elimination') {
+    const cause = typeof data.cause === 'string' ? data.cause : '';
+    const causedBy = id('causedById');
+    const descriptions: Record<string, string> = {
+      'wolf-attack': `${participant} foi eliminado pelo ataque da alcateia.`,
+      poison: `${participant} foi eliminado pelo veneno da Bruxa.`,
+      exile: `${participant} foi expulso pela votação da vila.`,
+      lover: `${participant} morreu após perder seu amor.`,
+      'guardian-intercept': `${participant} se sacrificou ao interceptar o ataque da alcateia.`,
+      'hunter-shot': `${participant} foi atingido pelo último disparo${causedBy ? ` de ${name(causedBy)}` : ' do Caçador'}.`,
+    };
+    return {
+      title: 'Eliminação',
+      description:
+        descriptions[cause] ?? `${participant} foi eliminado da partida.`,
+    };
+  }
+  if (event.type === 'lovers') {
+    const lovers = Array.isArray(data.players)
+      ? data.players.filter((item): item is string => typeof item === 'string')
+      : [];
+    return {
+      title: 'Laço dos amantes',
+      description:
+        lovers.length === 2
+          ? `${name(lovers[0]!)} e ${name(lovers[1]!)} foram unidos pelo Cupido.`
+          : 'O Cupido uniu dois destinos durante a primeira noite.',
+    };
+  }
+  if (event.type === 'wolf-target-locked' || event.type === 'wolf-target') {
+    const wolfTarget = id('targetId') ?? id('playerId');
+    return {
+      title: 'Decisão da alcateia',
+      description: wolfTarget
+        ? `A alcateia escolheu ${name(wolfTarget)} como alvo.`
+        : 'A alcateia não conseguiu definir um alvo.',
+    };
+  }
+  if (event.type === 'wolf-tie')
+    return {
+      title: 'Empate da alcateia',
+      description: 'Os Lobisomens dividiram seus votos e não atacaram ninguém.',
+    };
+  if (event.type === 'witch-heal')
+    return {
+      title: 'Poção de cura',
+      description: `A Bruxa usou sua cura para salvar ${participant}.`,
+    };
+  if (event.type === 'witch-poison')
+    return {
+      title: 'Poção de veneno',
+      description: `A Bruxa envenenou ${participant}.`,
+    };
+  if (event.type === 'doctor-protect')
+    return {
+      title: 'Proteção do Médico',
+      description: `O Médico protegeu ${participant} durante a noite.`,
+    };
+  if (event.type === 'guardian-intercept')
+    return {
+      title: 'Sacrifício do Guardião',
+      description: `${name(id('guardianId'))} interceptou o ataque dirigido a ${name(id('guardedPlayerId'))}.`,
+    };
+  if (event.type === 'little-girl-random') {
+    const detected =
+      typeof data.detectionRoll === 'number' && data.detectionRoll < 0.25;
+    return {
+      title: 'Espionagem da Menina',
+      description: `${name(id('littleGirlId'))} espionou a alcateia${detected ? ' e foi descoberta pelos Lobisomens' : ' sem ser descoberta'}.`,
+    };
+  }
+  if (event.type === 'day-vote-result') {
+    const exiled = id('exiledPlayerId');
+    const reasons: Record<string, string> = {
+      'no-exile': 'a opção sem expulsão venceu',
+      tie: 'a votação terminou empatada',
+      'no-votes': 'nenhum voto foi confirmado',
+    };
+    return {
+      title: 'Resultado da votação',
+      description: exiled
+        ? `${name(exiled)} foi escolhido pela vila para deixar a partida.`
+        : `Ninguém foi expulso: ${reasons[String(data.reason)] ?? 'não houve uma decisão válida'}.`,
+    };
+  }
+  if (event.type === 'abstention')
+    return {
+      title: 'Ação não realizada',
+      description: `${participant} não confirmou sua ação antes do encerramento da etapa.`,
+    };
+  if (event.type === 'game-finished') {
+    const winners: Record<string, string> = {
+      village: 'A Vila eliminou todos os Lobisomens e venceu a partida.',
+      werewolves: 'Os Lobisomens alcançaram a paridade e venceram a partida.',
+      lovers: 'Os Amantes sobreviveram como o último par e venceram a partida.',
+    };
+    return {
+      title: 'Fim da partida',
+      description:
+        winners[String(data.winner)] ?? 'A partida chegou ao seu desfecho.',
+    };
+  }
+  if (event.type === 'no-exile')
+    return {
+      title: 'Dia sem expulsão',
+      description: 'A vila encerrou o dia sem expulsar nenhum jogador.',
+    };
+  return {
+    title: 'Acontecimento da partida',
+    description: 'O servidor registrou uma ação decisiva para o resultado.',
+  };
 }
 
 function createCommandId(): string {

@@ -38,6 +38,8 @@ export type PlayerSummary = {
 export type RoomSettings = {
   discussionMinutes: number;
   allowNoExile: boolean;
+  hideSpecialRoles: boolean;
+  showFinalTimeline: boolean;
   specialRoles: RoleId[];
 };
 
@@ -50,6 +52,10 @@ export type PublicSnapshot = {
   deadline: string | null;
   players: PlayerSummary[];
   settings: RoomSettings;
+  discussionReadiness: {
+    readyCount: number;
+    requiredCount: number;
+  } | null;
   announcements: string[];
   winner: 'village' | 'werewolves' | 'lovers' | null;
 };
@@ -74,6 +80,7 @@ export type PrivateSnapshot = {
   knownPlayers: Array<{ playerId: string; fact: string }>;
   resources: Record<string, boolean | number | string>;
   availableAction: AvailableAction | null;
+  readyForVote: boolean;
   personalWinner: boolean;
 };
 
@@ -81,6 +88,7 @@ export type HostSnapshot = {
   canConfigure: boolean;
   canStart: boolean;
   startBlockers: string[];
+  configuredSpecialRoles: RoleId[];
 };
 
 export type FinalRole = {
@@ -163,6 +171,8 @@ export function parseRoomSettings(value: unknown): RoomSettings {
     Number(candidate.discussionMinutes) < 1 ||
     Number(candidate.discussionMinutes) > 15 ||
     typeof candidate.allowNoExile !== 'boolean' ||
+    typeof candidate.hideSpecialRoles !== 'boolean' ||
+    typeof candidate.showFinalTimeline !== 'boolean' ||
     !Array.isArray(candidate.specialRoles) ||
     !candidate.specialRoles.every(isRoleId)
   ) {
@@ -171,6 +181,8 @@ export function parseRoomSettings(value: unknown): RoomSettings {
   return {
     discussionMinutes: Number(candidate.discussionMinutes),
     allowNoExile: candidate.allowNoExile,
+    hideSpecialRoles: candidate.hideSpecialRoles,
+    showFinalTimeline: candidate.showFinalTimeline,
     specialRoles: [...new Set(candidate.specialRoles)],
   };
 }

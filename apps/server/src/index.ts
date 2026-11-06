@@ -28,6 +28,7 @@ try {
 } catch (error) {
   logger.log('error', 'server.start_failed', {
     errorName: error instanceof Error ? error.name : 'unknown',
+    errorMessage: error instanceof Error ? error.message : String(error),
   });
   process.exitCode = 1;
 }

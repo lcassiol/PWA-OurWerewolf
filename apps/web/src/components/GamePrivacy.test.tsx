@@ -121,6 +121,45 @@ describe('fases e decisões', () => {
     host: null,
   });
 
+  it('permite declarar prontidão durante a discussão e mostra a maioria', async () => {
+    const user = userEvent.setup();
+    const onReadyForVote = vi.fn().mockResolvedValue(undefined);
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...makeSnapshot().public,
+            status: 'playing',
+            phase: 'discussion',
+            round: 1,
+            deadline: new Date(Date.now() + 60_000).toISOString(),
+            discussionReadiness: { readyCount: 2, requiredCount: 4 },
+          },
+          private: {
+            ...makeSnapshot().private,
+            role: 'villager',
+            alignment: 'village',
+            readyForVote: false,
+          },
+          host: null,
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={vi.fn()}
+        onReadyForVote={onReadyForVote}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('2 de 4 prontos para votar')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Estou pronto para votar' }),
+    );
+    expect(onReadyForVote).toHaveBeenCalledOnce();
+  });
+
   it('envia voto com versão e fase autoritativas', async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn().mockResolvedValue(undefined);
@@ -132,6 +171,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={onCommand}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -158,6 +198,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={vi.fn()}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -187,6 +228,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={onCommand}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -238,6 +280,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={onCommand}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -280,6 +323,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={onCommand}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -310,6 +354,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={onCommand}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -336,6 +381,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={onCommand}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -388,6 +434,7 @@ describe('fases e decisões', () => {
         busy={false}
         message={null}
         onCommand={vi.fn()}
+        onReadyForVote={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -398,6 +445,9 @@ describe('fases e decisões', () => {
     expect(screen.getByText(/vitória pessoal/)).toBeInTheDocument();
     expect(screen.getByText('Lobisomem')).toBeInTheDocument();
     expect(screen.getByText('Linha do tempo decisiva')).toBeInTheDocument();
-    expect(screen.getByText(/Bento exile/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Bento foi expulso pela votação da vila.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Eliminação')).toBeInTheDocument();
   });
 });

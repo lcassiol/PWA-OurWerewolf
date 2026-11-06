@@ -9,7 +9,11 @@ import { createLogger } from './logger.js';
 
 type Member = { identity: Identity; credential: string };
 
-function fixture(specialRoles: RoleId[], playerCount = 6) {
+function fixture(
+  specialRoles: RoleId[],
+  playerCount = 6,
+  showFinalTimeline = true,
+) {
   const database = new DatabaseSync(':memory:');
   migrateUp(database);
   const service = new GameService({
@@ -28,6 +32,8 @@ function fixture(specialRoles: RoleId[], playerCount = 6) {
   service.updateSettings(host.identity, {
     discussionMinutes: 1,
     allowNoExile: true,
+    hideSpecialRoles: false,
+    showFinalTimeline,
     specialRoles,
   });
   for (const member of members) service.setReady(member.identity, true);
@@ -319,10 +325,40 @@ void test('day votes resolve when voting closes and results are visible in day-r
     assert.equal(result.public.phase, 'day-resolution');
     assert.ok(
       result.public.announcements.some((item) =>
-        item.includes('No player was exiled'),
+        item.includes('Nenhum jogador foi expulso'),
       ),
     );
     assert.equal(effectCount(database, 'day-vote-result'), 1);
+  } finally {
+    database.close();
+  }
+});
+
+void test('a living majority can end discussion and open voting early', () => {
+  const { database, service, members } = fixture([]);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    submit(service, wolf, 'wolf-vote', []);
+    expire(service, database);
+    assert.equal(
+      service.project(members[0]!.identity).public.phase,
+      'discussion',
+    );
+
+    for (const member of members.slice(0, 3)) {
+      const snapshot = service.markReadyForVote(member.identity);
+      assert.equal(snapshot.public.phase, 'discussion');
+    }
+    const waiting = service.project(members[0]!.identity);
+    assert.deepEqual(waiting.public.discussionReadiness, {
+      readyCount: 3,
+      requiredCount: 4,
+    });
+    assert.equal(waiting.private.readyForVote, true);
+
+    const voting = service.markReadyForVote(members[3]!.identity);
+    assert.equal(voting.public.phase, 'voting');
+    assert.equal(voting.public.discussionReadiness, null);
   } finally {
     database.close();
   }
@@ -366,7 +402,7 @@ void test('Doctor repeat restriction compares only the immediately previous nigh
 });
 
 void test('a werewolf victory includes dead faction members', () => {
-  const { database, service, members } = fixture([], 9);
+  const { database, service, members } = fixture([], 9, false);
   try {
     const deadWolf = byRole(service, members, 'werewolf', 0);
     const livingWolf = byRole(service, members, 'werewolf', 1);
@@ -381,6 +417,7 @@ void test('a werewolf victory includes dead faction members', () => {
     submit(service, livingWolf, 'wolf-vote', []);
     const final = service.project(deadWolf.identity);
     assert.equal(final.public.winner, 'werewolves');
+    assert.equal(final.finalEvents, undefined);
     const wolfResults = final.finalRoles?.filter(
       (role) => role.role === 'werewolf',
     );
