@@ -15,6 +15,7 @@ export function makeSnapshot(
         {
           id: 'p1',
           nickname: 'Iara',
+          avatarId: 'moon',
           alive: true,
           ready: false,
           connection: 'connected',
@@ -23,6 +24,7 @@ export function makeSnapshot(
         {
           id: 'p2',
           nickname: 'Bento',
+          avatarId: 'owl',
           alive: true,
           ready: true,
           connection: 'connected',
@@ -31,6 +33,7 @@ export function makeSnapshot(
         {
           id: 'p3',
           nickname: 'Cora',
+          avatarId: 'fox',
           alive: true,
           ready: true,
           connection: 'connected',
@@ -39,6 +42,7 @@ export function makeSnapshot(
         {
           id: 'p4',
           nickname: 'Davi',
+          avatarId: 'stag',
           alive: true,
           ready: true,
           connection: 'connected',
@@ -47,6 +51,7 @@ export function makeSnapshot(
         {
           id: 'p5',
           nickname: 'Eva',
+          avatarId: 'raven',
           alive: true,
           ready: true,
           connection: 'connected',
@@ -55,6 +60,7 @@ export function makeSnapshot(
         {
           id: 'p6',
           nickname: 'Félix',
+          avatarId: 'cat',
           alive: true,
           ready: true,
           connection: 'connected',

@@ -94,11 +94,35 @@ describe('cliente HTTP', () => {
       expect.objectContaining({ method: 'PATCH' }),
     );
 
+    await api.setAvatar('LUAR', 'fox');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/rooms/LUAR/avatar',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ avatarId: 'fox' }),
+      }),
+    );
+
     await api.markReadyForVote('LUAR');
     expect(fetchMock).toHaveBeenLastCalledWith(
       '/api/rooms/LUAR/vote-ready',
       expect.objectContaining({ method: 'POST' }),
     );
+
+    await api.returnAfterGame('LUAR');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/rooms/LUAR/return',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('retorna null quando o retorno pós-jogo leva à página inicial', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
+    );
+
+    await expect(api.returnAfterGame('LUAR')).resolves.toBeNull();
   });
 
   it('preserva o status de uma resposta de autorização sem JSON', async () => {

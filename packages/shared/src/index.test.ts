@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { GameSnapshot } from './index.js';
-import { parseRoomSettings } from './index.js';
+import { avatarIds, parseRoomSettings } from './index.js';
 
 describe('shared contracts', () => {
+  it('offers ten distinct participant avatars', () => {
+    expect(avatarIds).toHaveLength(10);
+    expect(new Set(avatarIds).size).toBe(10);
+  });
+
   it('validates and deduplicates room settings', () => {
     expect(
       parseRoomSettings({

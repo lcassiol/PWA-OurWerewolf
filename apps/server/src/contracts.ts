@@ -1,8 +1,10 @@
+export { avatarIds } from '@our-werewolf/shared';
 export type {
   ActionChoice,
   Alignment,
   ApiError,
   ApiErrorCode,
+  AvatarId,
   AvailableAction,
   CommandErrorResponse,
   ConnectionStatus,

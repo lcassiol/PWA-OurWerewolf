@@ -1,4 +1,9 @@
-import type { GameSnapshot, RoleId, RoomSettings } from '@our-werewolf/shared';
+import type {
+  AvatarId,
+  GameSnapshot,
+  RoleId,
+  RoomSettings,
+} from '@our-werewolf/shared';
 import { useRef, useState } from 'react';
 import {
   gameRuleCatalog,
@@ -8,6 +13,8 @@ import {
 } from '../catalog';
 import type { NetworkState } from '../hooks';
 import { ConnectionBadge } from './ConnectionBadge';
+import { ParticipantAvatar } from './ParticipantAvatar';
+import { AvatarPicker } from './AvatarPicker';
 
 type LobbyScreenProps = {
   snapshot: GameSnapshot;
@@ -15,6 +22,7 @@ type LobbyScreenProps = {
   busy: boolean;
   message: string | null;
   onReady: (ready: boolean) => Promise<void>;
+  onAvatarChange: (avatarId: AvatarId) => Promise<void>;
   onSettings: (settings: RoomSettings) => Promise<void>;
   onStart: () => Promise<void>;
   onRemove: (playerId: string) => Promise<void>;
@@ -135,9 +143,20 @@ export function LobbyScreen(props: LobbyScreenProps) {
           <ul className="participant-list">
             {publicState.players.map((player) => (
               <li key={player.id}>
-                <span className="participant-avatar" aria-hidden="true">
-                  {player.nickname.slice(0, 1).toUpperCase()}
-                </span>
+                {player.id === privateState.playerId ? (
+                  <AvatarPicker
+                    avatarId={player.avatarId}
+                    nickname={player.nickname}
+                    className="participant-avatar"
+                    disabled={props.busy || network !== 'connected'}
+                    onSelect={props.onAvatarChange}
+                  />
+                ) : (
+                  <ParticipantAvatar
+                    avatarId={player.avatarId}
+                    className="participant-avatar"
+                  />
+                )}
                 <span className="participant-name">
                   {player.nickname}
                   {player.host ? <small>Anfitrião</small> : null}
@@ -260,9 +279,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
   const [showFinalTimeline, setShowFinalTimeline] = useState(
     snapshot.public.settings.showFinalTimeline,
   );
-  const onSaveRef = useRef(onSave);
   const saveQueue = useRef(Promise.resolve());
-  onSaveRef.current = onSave;
   const playerCount = snapshot.public.players.length;
   const compositionPlayerCount = Math.max(6, playerCount);
   const wolves = werewolfCount(compositionPlayerCount);
@@ -273,7 +290,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
       : null;
 
   const persist = (settings: RoomSettings) => {
-    const save = () => onSaveRef.current(settings);
+    const save = () => onSave(settings);
     saveQueue.current = saveQueue.current.then(save, save);
   };
 

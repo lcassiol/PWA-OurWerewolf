@@ -31,6 +31,7 @@ describe('catálogo de regras', () => {
         busy={false}
         message={null}
         onReady={vi.fn()}
+        onAvatarChange={vi.fn()}
         onSettings={vi.fn()}
         onStart={vi.fn()}
         onRemove={vi.fn()}

@@ -1,4 +1,5 @@
 import type {
+  AvatarId,
   GameCommand,
   GameSnapshot,
   RoomSettings,
@@ -158,6 +159,28 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
     }
   };
 
+  const returnAfterGame = async () => {
+    if (!snapshot) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const nextSnapshot = await apiClient.returnAfterGame(
+        snapshot.public.roomCode,
+      );
+      setSnapshot(nextSnapshot);
+    } catch (error) {
+      if (isSessionInvalid(error)) clearInvalidSession();
+      else
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível voltar para a vila.',
+        );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const roomCode = snapshot?.public.roomCode;
   const decisionPending =
     Boolean(snapshot?.private.availableAction) &&
@@ -200,6 +223,9 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
             ready ? 'Você está pronto.' : 'Prontidão removida.',
           )
         }
+        onAvatarChange={(avatarId: AvatarId) =>
+          run(() => apiClient.setAvatar(snapshot.public.roomCode, avatarId))
+        }
         onSettings={(settings: RoomSettings) =>
           run(
             () => apiClient.updateSettings(snapshot.public.roomCode, settings),
@@ -232,6 +258,10 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
             'Você está pronto para votar.',
           )
         }
+        onAvatarChange={(avatarId: AvatarId) =>
+          run(() => apiClient.setAvatar(snapshot.public.roomCode, avatarId))
+        }
+        onReturn={returnAfterGame}
         onInstall={() => installState.setOpen(true)}
       />
     );

@@ -12,11 +12,13 @@ function mockApi(): ApiClient {
     joinRoom: vi.fn().mockResolvedValue(makeSnapshot()),
     getSnapshot: vi.fn().mockResolvedValue(makeSnapshot()),
     setReady: vi.fn().mockResolvedValue(makeSnapshot()),
+    setAvatar: vi.fn().mockResolvedValue(makeSnapshot()),
     updateSettings: vi.fn().mockResolvedValue(makeSnapshot()),
     startGame: vi.fn().mockResolvedValue(makeSnapshot()),
     markReadyForVote: vi.fn().mockResolvedValue(makeSnapshot()),
     removePlayer: vi.fn().mockResolvedValue(makeSnapshot()),
     leaveRoom: vi.fn().mockResolvedValue(undefined),
+    returnAfterGame: vi.fn().mockResolvedValue(makeSnapshot()),
     sendCommand: vi.fn().mockResolvedValue(makeSnapshot()),
   };
 }

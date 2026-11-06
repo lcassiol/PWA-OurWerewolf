@@ -713,22 +713,195 @@ input::placeholder {
   display: grid;
   min-height: 60px;
   align-items: center;
-  grid-template-columns: 40px minmax(0, 1fr) auto auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto auto;
   gap: 0.65rem;
   border-bottom: 1px solid rgba(210, 168, 94, 0.12);
 }
 
 .participant-avatar,
-.target-avatar {
+.target-avatar,
+.village-avatar {
   display: grid;
   width: 36px;
   height: 36px;
   place-items: center;
-  color: var(--amber-light);
+  color: var(--avatar-color, var(--amber-light));
   border: 1px solid var(--line);
   border-radius: 50% 50% 46% 54%;
   background: #292219;
   font-family: var(--serif);
+}
+
+.player-avatar svg {
+  width: 78%;
+  height: 78%;
+  overflow: visible;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.player-avatar .avatar-cutout {
+  fill: #292219;
+  stroke: none;
+}
+
+.player-avatar .avatar-detail {
+  fill: none;
+}
+
+.player-avatar[data-avatar-id='moon'] {
+  --avatar-color: #e7c77f;
+}
+
+.player-avatar[data-avatar-id='owl'] {
+  --avatar-color: #c8a978;
+}
+
+.player-avatar[data-avatar-id='fox'] {
+  --avatar-color: #d97f54;
+}
+
+.player-avatar[data-avatar-id='stag'] {
+  --avatar-color: #af8a62;
+}
+
+.player-avatar[data-avatar-id='raven'] {
+  --avatar-color: #9b94bc;
+}
+
+.player-avatar[data-avatar-id='cat'] {
+  --avatar-color: #d8ad91;
+}
+
+.player-avatar[data-avatar-id='bat'] {
+  --avatar-color: #8f86ac;
+}
+
+.player-avatar[data-avatar-id='bear'] {
+  --avatar-color: #b58a67;
+}
+
+.player-avatar[data-avatar-id='rabbit'] {
+  --avatar-color: #d6c5b8;
+}
+
+.player-avatar[data-avatar-id='boar'] {
+  --avatar-color: #b9786f;
+}
+
+.avatar-picker-trigger {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.avatar-picker-trigger:not(:disabled):hover .player-avatar {
+  border-color: var(--amber);
+  box-shadow: 0 0 16px rgba(210, 168, 94, 0.22);
+}
+
+.avatar-picker-trigger:focus-visible {
+  outline: 3px solid var(--amber-light);
+  outline-offset: 1px;
+}
+
+.avatar-picker-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.avatar-picker-backdrop {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  padding: 1rem;
+  background: rgba(8, 7, 6, 0.82);
+  inset: 0;
+  place-items: center;
+}
+
+.avatar-picker-dialog {
+  width: min(100%, 31rem);
+  max-height: calc(100dvh - 2rem);
+  padding: 1.25rem;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--charcoal-soft);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58);
+}
+
+.avatar-picker-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.avatar-picker-heading h2 {
+  font-size: 1.7rem;
+}
+
+.avatar-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.avatar-option {
+  display: grid;
+  min-width: 0;
+  min-height: 82px;
+  padding: 0.6rem 0.3rem;
+  place-items: center;
+  gap: 0.35rem;
+  color: var(--paper-muted);
+  border: 1px solid rgba(210, 168, 94, 0.14);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+}
+
+.avatar-option .player-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.avatar-option span:last-child {
+  overflow: hidden;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.avatar-option:not(:disabled):hover,
+.avatar-option.is-selected {
+  color: var(--paper);
+  border-color: var(--amber);
+  background: rgba(210, 168, 94, 0.1);
+}
+
+.avatar-option:focus-visible {
+  outline: 3px solid var(--amber-light);
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  .avatar-picker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .participant-name {
@@ -1495,6 +1668,16 @@ input::placeholder {
   font-family: var(--serif);
 }
 
+.village-strip .avatar-picker-trigger {
+  width: 50px;
+  height: 50px;
+}
+
+.village-strip .village-avatar {
+  width: 42px;
+  height: 42px;
+}
+
 .village-strip li small {
   color: #d47a6c;
   font-size: 0.58rem;
@@ -1551,6 +1734,18 @@ input::placeholder {
   font-style: italic;
 }
 
+.final-avatar-picker {
+  display: grid;
+  margin: 1rem auto 0;
+  justify-items: center;
+  gap: 0.25rem;
+  color: var(--paper-muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .final-roles,
 .chronicle {
   max-width: 760px;
@@ -1602,9 +1797,15 @@ input::placeholder {
   color: var(--paper);
 }
 
-.final-install {
+.final-actions {
+  display: grid;
   max-width: 420px;
   margin: 1.5rem auto;
+  gap: 0.75rem;
+}
+
+.final-install {
+  margin-top: 0.25rem;
 }
 
 .state-screen {

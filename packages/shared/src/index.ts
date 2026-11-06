@@ -1,3 +1,18 @@
+export const avatarIds = [
+  'moon',
+  'owl',
+  'fox',
+  'stag',
+  'raven',
+  'cat',
+  'bat',
+  'bear',
+  'rabbit',
+  'boar',
+] as const;
+
+export type AvatarId = (typeof avatarIds)[number];
+
 export const roleIds = [
   'werewolf',
   'villager',
@@ -29,6 +44,7 @@ export type GamePhase =
 export type PlayerSummary = {
   id: string;
   nickname: string;
+  avatarId: AvatarId;
   alive: boolean;
   ready: boolean;
   connection: ConnectionStatus;

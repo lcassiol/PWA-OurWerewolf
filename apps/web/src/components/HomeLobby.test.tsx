@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { RoomSettings } from '@our-werewolf/shared';
 import { HomeScreen } from './HomeScreen';
 import { LobbyScreen } from './LobbyScreen';
 import { makeSnapshot } from '../test/fixtures';
@@ -68,6 +69,7 @@ describe('lobby', () => {
   it('mostra código, prontidão, pendências e controles exclusivos do anfitrião', async () => {
     const user = userEvent.setup();
     const onReady = vi.fn().mockResolvedValue(undefined);
+    const onAvatarChange = vi.fn().mockResolvedValue(undefined);
     const onSettings = vi.fn().mockResolvedValue(undefined);
     const snapshot = makeSnapshot();
     snapshot.public.settings.allowNoExile = false;
@@ -86,6 +88,7 @@ describe('lobby', () => {
         busy={false}
         message={null}
         onReady={onReady}
+        onAvatarChange={onAvatarChange}
         onSettings={onSettings}
         onStart={vi.fn()}
         onRemove={vi.fn()}
@@ -121,6 +124,17 @@ describe('lobby', () => {
     await user.click(screen.getByRole('button', { name: 'Estou pronto' }));
     expect(onReady).toHaveBeenCalledWith(true);
 
+    await user.click(
+      screen.getByRole('button', { name: 'Escolher avatar de Iara' }),
+    );
+    expect(
+      within(screen.getByRole('dialog')).getAllByRole('button', {
+        pressed: false,
+      }),
+    ).toHaveLength(9);
+    await user.click(screen.getByRole('button', { name: 'Raposa' }));
+    expect(onAvatarChange).toHaveBeenCalledWith('fox');
+
     await user.selectOptions(screen.getByLabelText('Discussão diurna'), '7');
     await user.click(screen.getByLabelText(/Vidente/));
     await waitFor(() =>
@@ -141,7 +155,9 @@ describe('lobby', () => {
 
   it('sugere uma composição aleatória válida de papéis especiais', async () => {
     const user = userEvent.setup();
-    const onSettings = vi.fn().mockResolvedValue(undefined);
+    const onSettings = vi
+      .fn<(settings: RoomSettings) => Promise<void>>()
+      .mockResolvedValue(undefined);
     render(
       <LobbyScreen
         snapshot={makeSnapshot()}
@@ -149,6 +165,7 @@ describe('lobby', () => {
         busy={false}
         message={null}
         onReady={vi.fn()}
+        onAvatarChange={vi.fn()}
         onSettings={onSettings}
         onStart={vi.fn()}
         onRemove={vi.fn()}
@@ -170,7 +187,9 @@ describe('lobby', () => {
 
   it('sorteia uma composição equilibrada sem revelar os papéis no modo oculto', async () => {
     const user = userEvent.setup();
-    const onSettings = vi.fn().mockResolvedValue(undefined);
+    const onSettings = vi
+      .fn<(settings: RoomSettings) => Promise<void>>()
+      .mockResolvedValue(undefined);
     render(
       <LobbyScreen
         snapshot={makeSnapshot()}
@@ -178,6 +197,7 @@ describe('lobby', () => {
         busy={false}
         message={null}
         onReady={vi.fn()}
+        onAvatarChange={vi.fn()}
         onSettings={onSettings}
         onStart={vi.fn()}
         onRemove={vi.fn()}
@@ -212,6 +232,7 @@ describe('lobby', () => {
         busy={false}
         message={null}
         onReady={vi.fn()}
+        onAvatarChange={vi.fn()}
         onSettings={onSettings}
         onStart={vi.fn()}
         onRemove={vi.fn()}
@@ -238,6 +259,7 @@ describe('lobby', () => {
       busy: false,
       message: null,
       onReady: vi.fn(),
+      onAvatarChange: vi.fn(),
       onSettings: vi.fn(),
       onStart: vi.fn(),
       onRemove: vi.fn(),
@@ -299,6 +321,7 @@ describe('lobby', () => {
       busy: false,
       message: null,
       onReady: vi.fn(),
+      onAvatarChange: vi.fn(),
       onSettings: vi.fn(),
       onStart: vi.fn(),
       onRemove: vi.fn(),

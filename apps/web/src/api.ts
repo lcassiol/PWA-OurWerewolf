@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  AvatarId,
   GameCommand,
   GameSnapshot,
   RoomSettings,
@@ -79,6 +80,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ ready }),
     }),
+  setAvatar: (roomCode: string, avatarId: AvatarId) =>
+    snapshotRequest(`/rooms/${encodeURIComponent(roomCode)}/avatar`, {
+      method: 'PATCH',
+      body: JSON.stringify({ avatarId }),
+    }),
   updateSettings: (roomCode: string, settings: RoomSettings) =>
     snapshotRequest(`/rooms/${encodeURIComponent(roomCode)}/settings`, {
       method: 'PATCH',
@@ -101,6 +107,13 @@ export const api = {
     request<void>(`/rooms/${encodeURIComponent(roomCode)}/session`, {
       method: 'DELETE',
     }),
+  returnAfterGame: async (roomCode: string) => {
+    const response = await request<
+      GameSnapshot | { snapshot: GameSnapshot } | undefined
+    >(`/rooms/${encodeURIComponent(roomCode)}/return`, { method: 'POST' });
+    if (!response) return null;
+    return 'snapshot' in response ? response.snapshot : response;
+  },
   sendCommand: (roomCode: string, command: GameCommand) =>
     snapshotRequest(`/rooms/${encodeURIComponent(roomCode)}/commands`, {
       method: 'POST',

@@ -202,7 +202,7 @@ export function createApplication(options: CreateApplicationOptions) {
     }
 
     const roomMatch = url.pathname.match(
-      /^\/rooms\/([A-Za-z]{4})(?:\/(snapshot|reconnect|settings|ready|vote-ready|start|commands|session))?$/,
+      /^\/rooms\/([A-Za-z]{4})(?:\/(snapshot|reconnect|settings|ready|avatar|vote-ready|start|commands|session|return))?$/,
     );
     const removeMatch = url.pathname.match(
       /^\/rooms\/([A-Za-z]{4})\/participants\/([0-9a-f-]{36})$/i,
@@ -231,6 +231,13 @@ export function createApplication(options: CreateApplicationOptions) {
         const body = (await readJson(request)) as Record<string, unknown>;
         sendJson(response, 200, {
           snapshot: service.setReady(identity, body.ready),
+        });
+        return;
+      }
+      if (resource === 'avatar' && method === 'PATCH') {
+        const body = (await readJson(request)) as Record<string, unknown>;
+        sendJson(response, 200, {
+          snapshot: service.setAvatar(identity, body.avatarId),
         });
         return;
       }
@@ -284,6 +291,16 @@ export function createApplication(options: CreateApplicationOptions) {
         service.leaveRoom(identity);
         clearSessionCookie(response, options.config);
         response.writeHead(204).end();
+        return;
+      }
+      if (resource === 'return' && method === 'POST') {
+        const snapshot = service.returnAfterGame(identity);
+        if (!snapshot) {
+          clearSessionCookie(response, options.config);
+          response.writeHead(204).end();
+          return;
+        }
+        sendJson(response, 200, { snapshot });
         return;
       }
       if (removeMatch && method === 'DELETE') {

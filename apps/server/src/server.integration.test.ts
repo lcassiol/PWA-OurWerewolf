@@ -324,6 +324,73 @@ void test('room edge cases preserve authorization and frozen lobby state', async
   }
 });
 
+void test('participants receive stable avatars and can choose their own', async () => {
+  const application = await start();
+  try {
+    const host = await createRoom(application);
+    const code = host.snapshot.public.roomCode;
+    const members: Member[] = [host];
+    for (let index = 1; index < 10; index += 1) {
+      const response = await request(application, `/rooms/${code}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ nickname: `Avatar ${index}` }),
+      });
+      assert.equal(response.status, 201);
+      members.push({
+        cookie: cookie(response),
+        snapshot: (await json<{ snapshot: GameSnapshot }>(response)).snapshot,
+      });
+    }
+
+    const snapshot = await getSnapshot(application, code, host);
+    assert.equal(snapshot.public.players.length, 10);
+    assert.equal(
+      new Set(snapshot.public.players.map(({ avatarId }) => avatarId)).size,
+      10,
+    );
+    const restored = await getSnapshot(application, code, members[5]!);
+    assert.equal(
+      restored.public.players.find(
+        ({ id }) => id === members[5]!.snapshot.private.playerId,
+      )?.avatarId,
+      members[5]!.snapshot.public.players.find(
+        ({ id }) => id === members[5]!.snapshot.private.playerId,
+      )?.avatarId,
+    );
+
+    const changed = await request(application, `/rooms/${code}/avatar`, {
+      method: 'PATCH',
+      headers: { cookie: members[5]!.cookie },
+      body: JSON.stringify({ avatarId: 'moon' }),
+    });
+    assert.equal(changed.status, 200);
+    const changedSnapshot = (await json<{ snapshot: GameSnapshot }>(changed))
+      .snapshot;
+    assert.ok(changedSnapshot.public.version > restored.public.version);
+    assert.equal(
+      changedSnapshot.public.players.find(
+        ({ id }) => id === members[5]!.snapshot.private.playerId,
+      )?.avatarId,
+      'moon',
+    );
+    assert.equal(
+      changedSnapshot.public.players.find(
+        ({ id }) => id === host.snapshot.private.playerId,
+      )?.avatarId,
+      'moon',
+    );
+
+    const invalid = await request(application, `/rooms/${code}/avatar`, {
+      method: 'PATCH',
+      headers: { cookie: members[5]!.cookie },
+      body: JSON.stringify({ avatarId: 'dragon' }),
+    });
+    assert.equal(invalid.status, 400);
+  } finally {
+    await stop(application);
+  }
+});
+
 void test('health, room lifecycle, atomic start, projections, idempotency, and deadlines', async () => {
   const logs: string[] = [];
   const application = await start({}, logs);
@@ -662,6 +729,113 @@ void test('lobby sessions leave cleanly and cannot be reused', async () => {
       headers: { cookie: host.cookie },
     });
     assert.equal(staleHost.status, 401);
+  } finally {
+    await stop(application);
+  }
+});
+
+void test('post-game return preserves the host and reopens the existing room', async () => {
+  const application = await start();
+  let hostSocket: WebSocket | undefined;
+  try {
+    const host = await createRoom(application);
+    const code = host.snapshot.public.roomCode;
+    hostSocket = await connectMember(application, host);
+    const members: Member[] = [host];
+    for (let index = 1; index < 6; index += 1) {
+      const response = await request(application, `/rooms/${code}/join`, {
+        method: 'POST',
+        body: JSON.stringify({ nickname: `Return ${index}` }),
+      });
+      members.push({
+        cookie: cookie(response),
+        snapshot: (await json<{ snapshot: GameSnapshot }>(response)).snapshot,
+      });
+    }
+    for (const member of members) {
+      const ready = await request(application, `/rooms/${code}/ready`, {
+        method: 'PATCH',
+        headers: { cookie: member.cookie },
+        body: JSON.stringify({ ready: true }),
+      });
+      assert.equal(ready.status, 200);
+    }
+    const started = await request(application, `/rooms/${code}/start`, {
+      method: 'POST',
+      headers: { cookie: host.cookie },
+    });
+    assert.equal(started.status, 200);
+    application.database.exec(
+      "UPDATE games SET status = 'finished', phase = 'finished', deadline = NULL; UPDATE rooms SET status = 'finished';",
+    );
+
+    const returned = await request(application, `/rooms/${code}/return`, {
+      method: 'POST',
+      headers: { cookie: host.cookie },
+    });
+    assert.equal(returned.status, 200);
+    const lobby = (await json<{ snapshot: GameSnapshot }>(returned)).snapshot;
+    assert.equal(lobby.public.status, 'lobby');
+    assert.equal(lobby.public.phase, 'lobby');
+    assert.equal(lobby.public.players.length, 6);
+    assert.equal(
+      lobby.public.players.every((player) => !player.ready),
+      true,
+    );
+    assert.equal(
+      lobby.public.players.find(({ id }) => id === lobby.private.playerId)
+        ?.host,
+      true,
+    );
+    const guestReturned = await request(application, `/rooms/${code}/return`, {
+      method: 'POST',
+      headers: { cookie: members[1]!.cookie },
+    });
+    assert.equal(guestReturned.status, 200);
+    assert.equal(
+      (await json<{ snapshot: GameSnapshot }>(guestReturned)).snapshot.public
+        .status,
+      'lobby',
+    );
+    assert.equal(
+      (
+        application.database
+          .prepare('SELECT count(*) AS count FROM games')
+          .get() as {
+          count: number;
+        }
+      ).count,
+      0,
+    );
+  } finally {
+    hostSocket?.terminate();
+    await stop(application);
+  }
+});
+
+void test('post-game return sends a guest home when the host has not returned', async () => {
+  const application = await start();
+  try {
+    const host = await createRoom(application);
+    const code = host.snapshot.public.roomCode;
+    const joined = await request(application, `/rooms/${code}/join`, {
+      method: 'POST',
+      body: JSON.stringify({ nickname: 'Guest' }),
+    });
+    const guestCookie = cookie(joined);
+    application.database
+      .prepare("UPDATE rooms SET status = 'finished' WHERE code = ?")
+      .run(code);
+
+    const returned = await request(application, `/rooms/${code}/return`, {
+      method: 'POST',
+      headers: { cookie: guestCookie },
+    });
+    assert.equal(returned.status, 204);
+    const staleGuest = await request(application, '/session', {
+      headers: { cookie: guestCookie },
+    });
+    assert.equal(staleGuest.status, 401);
   } finally {
     await stop(application);
   }

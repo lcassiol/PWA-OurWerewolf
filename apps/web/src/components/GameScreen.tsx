@@ -1,5 +1,6 @@
 import type {
   ActionChoice,
+  AvatarId,
   AvailableAction,
   FinalEvent,
   GameCommand,
@@ -12,6 +13,8 @@ import { actionLabels, phaseCopy, roleCatalog } from '../catalog';
 import { formatCountdown, useCountdown } from '../hooks';
 import type { NetworkState } from '../hooks';
 import { ConnectionBadge } from './ConnectionBadge';
+import { AvatarPicker } from './AvatarPicker';
+import { ParticipantAvatar } from './ParticipantAvatar';
 import { SecretRoleCard } from './SecretRoleCard';
 
 type GameScreenProps = {
@@ -22,6 +25,8 @@ type GameScreenProps = {
   message: string | null;
   onCommand: (command: GameCommand) => Promise<boolean>;
   onReadyForVote: () => Promise<void>;
+  onAvatarChange: (avatarId: AvatarId) => Promise<void>;
+  onReturn: () => Promise<void>;
   onInstall: () => void;
 };
 
@@ -33,6 +38,8 @@ export function GameScreen({
   message,
   onCommand,
   onReadyForVote,
+  onAvatarChange,
+  onReturn,
   onInstall,
 }: GameScreenProps) {
   const publicState = snapshot.public;
@@ -43,6 +50,10 @@ export function GameScreen({
       <FinalScreen
         snapshot={snapshot}
         network={network}
+        busy={busy}
+        message={message}
+        onReturn={onReturn}
+        onAvatarChange={onAvatarChange}
         onInstall={onInstall}
       />
     );
@@ -140,7 +151,12 @@ export function GameScreen({
         </section>
       </div>
 
-      <AliveList players={publicState.players} />
+      <AliveList
+        players={publicState.players}
+        selfId={snapshot.private.playerId}
+        disabled={busy || network !== 'connected'}
+        onAvatarChange={onAvatarChange}
+      />
       <footer className="in-game-footer">
         <button className="text-button" type="button" onClick={onInstall}>
           Instalar Vila da Lua
@@ -270,9 +286,10 @@ function ActionPanel({
               checked={selected.includes(player.id)}
               onChange={() => choose(player.id)}
             />
-            <span className="target-avatar" aria-hidden="true">
-              {player.nickname.slice(0, 1).toUpperCase()}
-            </span>
+            <ParticipantAvatar
+              avatarId={player.avatarId}
+              className="target-avatar"
+            />
             <span>{player.nickname}</span>
             <span className="target-check" aria-hidden="true">
               ✓
@@ -474,14 +491,37 @@ function DiscussionPanel({
   );
 }
 
-function AliveList({ players }: { players: PlayerSummary[] }) {
+function AliveList({
+  players,
+  selfId,
+  disabled,
+  onAvatarChange,
+}: {
+  players: PlayerSummary[];
+  selfId: string;
+  disabled: boolean;
+  onAvatarChange: (avatarId: AvatarId) => Promise<void>;
+}) {
   return (
     <section className="village-strip" aria-labelledby="village-title">
       <h2 id="village-title">Quem ainda está na crônica</h2>
       <ul>
         {players.map((player) => (
           <li className={!player.alive ? 'is-eliminated' : ''} key={player.id}>
-            <span>{player.nickname.slice(0, 1).toUpperCase()}</span>
+            {player.id === selfId ? (
+              <AvatarPicker
+                avatarId={player.avatarId}
+                nickname={player.nickname}
+                className="village-avatar"
+                disabled={disabled}
+                onSelect={onAvatarChange}
+              />
+            ) : (
+              <ParticipantAvatar
+                avatarId={player.avatarId}
+                className="village-avatar"
+              />
+            )}
             {player.nickname}
             {!player.alive ? (
               <small>Eliminado</small>
@@ -498,10 +538,18 @@ function AliveList({ players }: { players: PlayerSummary[] }) {
 function FinalScreen({
   snapshot,
   network,
+  busy,
+  message,
+  onReturn,
+  onAvatarChange,
   onInstall,
 }: {
   snapshot: GameSnapshot;
   network: NetworkState;
+  busy: boolean;
+  message: string | null;
+  onReturn: () => Promise<void>;
+  onAvatarChange: (avatarId: AvatarId) => Promise<void>;
   onInstall: () => void;
 }) {
   const winnerNames = {
@@ -512,6 +560,9 @@ function FinalScreen({
   const mainWinner = snapshot.public.winner
     ? winnerNames[snapshot.public.winner]
     : 'A história terminou';
+  const self = snapshot.public.players.find(
+    (player) => player.id === snapshot.private.playerId,
+  );
 
   return (
     <main className="app-shell final-shell" id="main-content">
@@ -529,6 +580,18 @@ function FinalScreen({
           <p className="personal-win">
             Você também conquistou uma vitória pessoal.
           </p>
+        ) : null}
+        {self ? (
+          <div className="final-avatar-picker">
+            <AvatarPicker
+              avatarId={self.avatarId}
+              nickname={self.nickname}
+              className="village-avatar"
+              disabled={busy || network !== 'connected'}
+              onSelect={onAvatarChange}
+            />
+            <span>Seu avatar</span>
+          </div>
         ) : null}
       </section>
       <section className="panel final-roles" aria-labelledby="roles-title">
@@ -579,13 +642,28 @@ function FinalScreen({
           </ol>
         </section>
       ) : null}
-      <button
-        className="secondary-button final-install"
-        type="button"
-        onClick={onInstall}
-      >
-        Instalar para a próxima lua
-      </button>
+      <div className="final-actions">
+        <button
+          className="primary-button"
+          type="button"
+          disabled={busy || network !== 'connected'}
+          onClick={() => void onReturn()}
+        >
+          {snapshot.host ? 'Voltar para a sala' : 'Voltar para sala ou início'}
+        </button>
+        <p className="form-message" role="status" aria-live="polite">
+          {network !== 'connected'
+            ? 'Reconecte-se para voltar à sala ou à página inicial.'
+            : message}
+        </p>
+        <button
+          className="secondary-button final-install"
+          type="button"
+          onClick={onInstall}
+        >
+          Instalar para a próxima lua
+        </button>
+      </div>
     </main>
   );
 }
@@ -615,7 +693,7 @@ function describeFinalEvent(
     snapshot.public.players.find((player) => player.id === id)?.nickname ??
     'Um jogador';
   const id = (key: string) =>
-    typeof data[key] === 'string' ? (data[key] as string) : null;
+    typeof data[key] === 'string' ? data[key] : null;
   const participant = name(id('participantId'));
 
   if (event.type === 'elimination') {

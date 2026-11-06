@@ -85,9 +85,11 @@ curl -fsS -b /tmp/werewolf-player.cookies \
 | `POST /rooms`                          | none, rate limited  | create room and host session                        |
 | `POST /rooms/:code/join`               | none, rate limited  | join a lobby and issue session                      |
 | `POST /rooms/:code/reconnect`          | cookie              | rotate session and return fresh snapshot            |
+| `POST /rooms/:code/return`             | cookie              | reopen a finished room or return the guest home     |
 | `DELETE /rooms/:code/session`          | cookie              | leave lobby; a host closes the lobby                |
 | `GET /rooms/:code/snapshot`            | cookie              | recipient-filtered current state                    |
 | `PATCH /rooms/:code/settings`          | host cookie         | update lobby settings                               |
+| `PATCH /rooms/:code/avatar`            | cookie              | choose the authenticated participant's avatar       |
 | `PATCH /rooms/:code/ready`             | cookie              | set `{ "ready": boolean }`                          |
 | `DELETE /rooms/:code/participants/:id` | self or host cookie | remove lobby participant and invalidate its session |
 | `POST /rooms/:code/start`              | host cookie         | atomically freeze and start valid lobby             |

@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type {
+  AvatarId,
   AvailableAction,
   GameActionType,
   GameCommand,
@@ -9,6 +10,7 @@ import type {
   RoleId,
   RoomSettings,
 } from './contracts.js';
+import { avatarIds } from './contracts.js';
 import type { DomainAdapter } from './domain-adapter.js';
 import {
   fromWitchResources,
@@ -41,6 +43,7 @@ type ParticipantRow = {
   room_id: string;
   nickname: string;
   nickname_normalized: string;
+  avatar_id: AvatarId;
   is_host: number;
   ready: number;
   connected: number;
@@ -301,14 +304,15 @@ export class GameService {
           this.database
             .prepare(
               `INSERT INTO participants
-            (id, room_id, nickname, nickname_normalized, is_host, connected, session_hash, session_expires_at, joined_at)
-            VALUES (?, ?, ?, ?, 1, 0, ?, ?, ?)`,
+            (id, room_id, nickname, nickname_normalized, avatar_id, is_host, connected, session_hash, session_expires_at, joined_at)
+            VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
             )
             .run(
               participantId,
               roomId,
               nickname,
               normalized,
+              this.nextAvatarId(roomId),
               this.hashCredential(credential),
               this.sessionExpiry(now),
               now.toISOString(),
@@ -377,17 +381,19 @@ export class GameService {
         );
         assert((count?.count ?? 20) < 20, 409, 'conflict', 'The room is full');
         const participantId = randomUUID();
+        const avatarId = this.nextAvatarId(room.id);
         this.database
           .prepare(
             `INSERT INTO participants
-          (id, room_id, nickname, nickname_normalized, connected, session_hash, session_expires_at, joined_at)
-          VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
+          (id, room_id, nickname, nickname_normalized, avatar_id, connected, session_hash, session_expires_at, joined_at)
+          VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
           )
           .run(
             participantId,
             room.id,
             nickname,
             normalized,
+            avatarId,
             this.hashCredential(credential),
             this.sessionExpiry(now),
             now.toISOString(),
@@ -559,6 +565,43 @@ export class GameService {
     return this.project(identity);
   }
 
+  setAvatar(identity: Identity, avatarValue: unknown): GameSnapshot {
+    assert(
+      typeof avatarValue === 'string' &&
+        avatarIds.some((avatarId) => avatarId === avatarValue),
+      400,
+      'bad_request',
+      'Invalid avatar',
+    );
+    const avatarId = avatarValue as AvatarId;
+    const changed = inTransaction(this.database, () => {
+      const room = this.getRoom(identity.roomId);
+      const result = this.database
+        .prepare(
+          'UPDATE participants SET avatar_id = ? WHERE id = ? AND removed_at IS NULL AND avatar_id != ?',
+        )
+        .run(avatarId, identity.participantId, avatarId);
+      if (result.changes === 0) return false;
+      if (room.status === 'lobby') {
+        this.database
+          .prepare('UPDATE rooms SET version = version + 1 WHERE id = ?')
+          .run(room.id);
+      } else {
+        const game = this.getGame(room.id);
+        const version = game.version + 1;
+        this.database
+          .prepare('UPDATE games SET version = ? WHERE id = ?')
+          .run(version, game.id);
+        this.database
+          .prepare('UPDATE rooms SET version = ? WHERE id = ?')
+          .run(version, room.id);
+      }
+      return true;
+    });
+    if (changed) this.roomChanged(identity.roomCode);
+    return this.project(identity);
+  }
+
   removeParticipant(
     identity: Identity,
     participantId: string,
@@ -635,6 +678,62 @@ export class GameService {
       }
     });
     this.roomChanged(identity.roomCode);
+  }
+
+  returnAfterGame(identity: Identity): GameSnapshot | null {
+    const destination = inTransaction(this.database, () => {
+      const room = this.getRoom(identity.roomId);
+      assert(
+        room.status !== 'playing',
+        409,
+        'conflict',
+        'The game is still in progress',
+      );
+
+      if (identity.isHost) {
+        if (room.status === 'finished') {
+          this.database
+            .prepare('DELETE FROM games WHERE room_id = ?')
+            .run(room.id);
+          this.database
+            .prepare(
+              'UPDATE participants SET ready = 0 WHERE room_id = ? AND removed_at IS NULL',
+            )
+            .run(room.id);
+          this.database
+            .prepare(
+              "UPDATE rooms SET status = 'lobby', version = version + 1 WHERE id = ?",
+            )
+            .run(room.id);
+        }
+        return 'lobby' as const;
+      }
+
+      const hostReturned =
+        room.status === 'lobby' &&
+        Boolean(
+          this.database
+            .prepare(
+              'SELECT 1 FROM participants WHERE room_id = ? AND is_host = 1 AND connected = 1 AND removed_at IS NULL',
+            )
+            .get(room.id),
+        );
+      if (hostReturned) return 'lobby' as const;
+
+      this.database
+        .prepare(
+          'UPDATE participants SET removed_at = ?, connected = 0, session_hash = NULL, session_expires_at = NULL WHERE id = ?',
+        )
+        .run(this.now().toISOString(), identity.participantId);
+      if (room.status === 'lobby') {
+        this.database
+          .prepare('UPDATE rooms SET version = version + 1 WHERE id = ?')
+          .run(room.id);
+      }
+      return 'home' as const;
+    });
+    this.roomChanged(identity.roomCode);
+    return destination === 'lobby' ? this.project(identity) : null;
   }
 
   startGame(identity: Identity): GameSnapshot {
@@ -989,6 +1088,7 @@ export class GameService {
         players: participants.map((participant) => ({
           id: participant.id,
           nickname: participant.nickname,
+          avatarId: participant.avatar_id,
           alive: aliveById.get(participant.id) ?? true,
           ready: participant.ready === 1,
           connection:
@@ -2458,6 +2558,24 @@ export class GameService {
           'SELECT * FROM participants WHERE room_id = ? AND removed_at IS NULL ORDER BY joined_at, id',
         )
         .all(roomId),
+    );
+  }
+
+  private nextAvatarId(roomId: string): AvatarId {
+    const usage = new Map(
+      rows<{ avatar_id: AvatarId; count: number }>(
+        this.database
+          .prepare(
+            `SELECT avatar_id, count(*) AS count FROM participants
+             WHERE room_id = ? AND removed_at IS NULL GROUP BY avatar_id`,
+          )
+          .all(roomId),
+      ).map(({ avatar_id, count }) => [avatar_id, count]),
+    );
+    return avatarIds.reduce((selected, candidate) =>
+      (usage.get(candidate) ?? 0) < (usage.get(selected) ?? 0)
+        ? candidate
+        : selected,
     );
   }
 

@@ -1,10 +1,26 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { GameCommand } from '@our-werewolf/shared';
+import { avatarIds, type GameCommand } from '@our-werewolf/shared';
 import { GameScreen } from './GameScreen';
+import { ParticipantAvatar } from './ParticipantAvatar';
 import { SecretRoleCard } from './SecretRoleCard';
 import { makeSnapshot } from '../test/fixtures';
+
+describe('avatares dos participantes', () => {
+  it('renderiza os dez modelos disponíveis', () => {
+    const { container } = render(
+      <>
+        {avatarIds.map((avatarId) => (
+          <ParticipantAvatar avatarId={avatarId} key={avatarId} />
+        ))}
+      </>,
+    );
+
+    expect(container.querySelectorAll('[data-avatar-id]')).toHaveLength(10);
+    expect(container.querySelectorAll('svg')).toHaveLength(10);
+  });
+});
 
 describe('carta secreta', () => {
   const privateState = {
@@ -149,6 +165,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={vi.fn()}
         onReadyForVote={onReadyForVote}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -172,6 +190,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -199,6 +219,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={vi.fn()}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -229,6 +251,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -281,6 +305,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -324,6 +350,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -355,6 +383,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -382,6 +412,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
@@ -396,7 +428,9 @@ describe('fases e decisões', () => {
     expect(firstCommand.commandId).not.toBe(changedCommand.commandId);
   });
 
-  it('revela vencedores principais, pessoais e todos os papéis no final', () => {
+  it('revela o resultado e permite voltar para a vila', async () => {
+    const user = userEvent.setup();
+    const onReturn = vi.fn().mockResolvedValue(undefined);
     const finalSnapshot = makeSnapshot({
       public: {
         ...makeSnapshot().public,
@@ -435,6 +469,8 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={vi.fn()}
         onReadyForVote={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={onReturn}
         onInstall={vi.fn()}
       />,
     );
@@ -449,5 +485,9 @@ describe('fases e decisões', () => {
       screen.getByText('Bento foi expulso pela votação da vila.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Eliminação')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Voltar para sala ou início' }),
+    );
+    expect(onReturn).toHaveBeenCalledOnce();
   });
 });

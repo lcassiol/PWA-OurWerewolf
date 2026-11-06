@@ -4,6 +4,7 @@ import { initialMigration } from './migrations/001_initial.js';
 import { backendCorrectionsMigration } from './migrations/002_backend_corrections.js';
 import { hiddenRolesMigration } from './migrations/003_hidden_roles.js';
 import { finalTimelineMigration } from './migrations/004_final_timeline.js';
+import { participantAvatarsMigration } from './migrations/005_participant_avatars.js';
 import { openDatabase } from './open.js';
 
 const migrations = [
@@ -11,6 +12,7 @@ const migrations = [
   backendCorrectionsMigration,
   hiddenRolesMigration,
   finalTimelineMigration,
+  participantAvatarsMigration,
 ] as const;
 
 type Migration = (typeof migrations)[number];

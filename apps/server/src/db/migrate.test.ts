@@ -42,7 +42,7 @@ void test('migration applies constraints and rolls back cleanly', () => {
       /CHECK constraint failed/,
     );
 
-    migrateDown(database, 4);
+    migrateDown(database, 5);
     const tables = database
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'schema_migrations'",
@@ -62,7 +62,7 @@ void test('migration runner is idempotent', () => {
     const applied = database
       .prepare('SELECT count(*) AS count FROM schema_migrations')
       .get() as { count: number };
-    assert.equal(applied.count, 4);
+    assert.equal(applied.count, 5);
   } finally {
     database.close();
   }
@@ -98,7 +98,7 @@ void test('removed participants release nicknames while active nicknames stay un
       () => insert.run('duplicate', 'SAME', new Date(2).toISOString(), null),
       /UNIQUE constraint failed/,
     );
-    migrateDown(database, 3);
+    migrateDown(database, 4);
     const restored = database
       .prepare('SELECT id, nickname_normalized FROM participants ORDER BY id')
       .all() as Array<{ id: string; nickname_normalized: string }>;
@@ -156,13 +156,21 @@ void test('nickname migration preserves existing games and supports down migrati
       .run();
 
     migrateUp(database);
+    assert.equal(
+      (
+        database
+          .prepare("SELECT avatar_id FROM participants WHERE id = 'player'")
+          .get() as { avatar_id: string }
+      ).avatar_id,
+      'moon',
+    );
     assert.ok(
       database
         .prepare("SELECT 1 FROM assignments WHERE id = 'assignment'")
         .get(),
     );
     assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
-    migrateDown(database, 3);
+    migrateDown(database, 4);
     assert.ok(
       database
         .prepare("SELECT 1 FROM assignments WHERE id = 'assignment'")
