@@ -4,7 +4,7 @@ import type {
   GameSnapshot,
   RoomSettings,
 } from '@our-werewolf/shared';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, ApiRequestError } from './api';
 import type { ApiClient } from './api';
 import { GameScreen } from './components/GameScreen';
@@ -30,6 +30,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
   const [message, setMessage] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
   const [retrySession, setRetrySession] = useState(0);
+  const hasActiveSession = useRef(false);
   const installState = usePwaInstall();
   const themeId = snapshot?.public.themeId ?? 'autumn-legend';
 
@@ -48,12 +49,16 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
   }, [themeId]);
 
   const applySnapshot = (incoming: GameSnapshot) => {
+    hasActiveSession.current = true;
     setSnapshot((current) => selectCurrentSnapshot(current, incoming));
   };
 
   const clearInvalidSession = () => {
+    const shouldNotify = hasActiveSession.current;
+    hasActiveSession.current = false;
     setSnapshot(null);
-    setMessage('Sua sessão não é mais válida. Entre novamente na vila.');
+    if (shouldNotify)
+      setMessage('Sua sessão não é mais válida. Entre novamente na vila.');
   };
 
   useEffect(() => {
@@ -118,12 +123,15 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
       applySnapshot(await operation());
       if (success) setMessage(success);
     } catch (error) {
-      if (isSessionInvalid(error)) clearInvalidSession();
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'A ação não foi confirmada. Tente novamente.',
-      );
+      if (isSessionInvalid(error)) {
+        clearInvalidSession();
+      } else {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'A ação não foi confirmada. Tente novamente.',
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -137,7 +145,6 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
       applySnapshot(
         await apiClient.sendCommand(snapshot.public.roomCode, command),
       );
-      setMessage('Decisão recebida pelo servidor.');
       return true;
     } catch (error) {
       await recoverRejectedCommand(
@@ -146,11 +153,13 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         applySnapshot,
         clearInvalidSession,
       );
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'A decisão não foi confirmada. Tente novamente.',
-      );
+      if (!isSessionInvalid(error)) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'A decisão não foi confirmada. Tente novamente.',
+        );
+      }
       return false;
     } finally {
       setBusy(false);
@@ -162,6 +171,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
     setBusy(true);
     try {
       await apiClient.leaveRoom(snapshot.public.roomCode);
+      hasActiveSession.current = false;
       setSnapshot(null);
       setMessage(null);
     } catch (error) {
@@ -183,6 +193,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
       const nextSnapshot = await apiClient.returnAfterGame(
         snapshot.public.roomCode,
       );
+      hasActiveSession.current = Boolean(nextSnapshot);
       setSnapshot(nextSnapshot);
     } catch (error) {
       if (isSessionInvalid(error)) clearInvalidSession();
@@ -236,7 +247,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         onReady={(ready) =>
           run(
             () => apiClient.setReady(snapshot.public.roomCode, ready),
-            ready ? 'Você está pronto.' : 'Prontidão removida.',
+            ready ? undefined : 'Prontidão removida.',
           )
         }
         onAvatarChange={(avatarId: AvatarId) =>
@@ -271,6 +282,14 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
           run(
             () => apiClient.markReadyForVote(snapshot.public.roomCode),
             'Você está pronto para votar.',
+          )
+        }
+        onAcknowledgeDayResolution={() =>
+          run(() =>
+            apiClient.acknowledgeDayResolution(
+              snapshot.public.roomCode,
+              snapshot.public.round,
+            ),
           )
         }
         onAvatarChange={(avatarId: AvatarId) =>

@@ -53,11 +53,34 @@ test('mobile browser layout, install metadata, rotation, and offline shell', asy
     if (!navigator.serviceWorker.controller) location.reload();
   });
   await page.waitForLoadState('networkidle');
+  await page.setViewportSize({ width: 412, height: 915 });
   await page.getByLabel('Seu apelido').fill('Cache Check');
   await page.getByRole('button', { name: 'Criar minha vila' }).click();
   await expect(
     page.getByRole('button', { name: /Compartilhar sala/ }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: /A vila se reúne em .+ durante [oa]\.\.\./,
+    }),
+  ).toBeVisible();
+  const lobbyLayout = await page.evaluate(() => {
+    const code = document.querySelector<HTMLElement>('.room-code')!;
+    const occupancy = document.querySelector<HTMLElement>('.room-occupancy')!;
+    const artwork = document.querySelector<HTMLElement>('.room-theme-art')!;
+    const participants =
+      document.querySelector<HTMLElement>('.participant-panel')!;
+    const occupancyRect = occupancy.getBoundingClientRect();
+    return {
+      codeFontSize: Number.parseFloat(getComputedStyle(code).fontSize),
+      occupancyRight: window.innerWidth - occupancyRect.right,
+      artworkTop: artwork.getBoundingClientRect().top,
+      participantsTop: participants.getBoundingClientRect().top,
+    };
+  });
+  expect(lobbyLayout.codeFontSize).toBeLessThanOrEqual(30);
+  expect(lobbyLayout.occupancyRight).toBeLessThanOrEqual(24);
+  expect(lobbyLayout.artworkTop).toBeLessThan(lobbyLayout.participantsTop);
   const cachedUrls = await page.evaluate(async () => {
     const urls: string[] = [];
     for (const cacheName of await caches.keys()) {

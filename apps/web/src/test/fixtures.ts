@@ -70,12 +70,13 @@ export function makeSnapshot(
       ],
       settings: {
         discussionMinutes: 5,
-        allowNoExile: true,
+        allowNoExile: false,
         hideSpecialRoles: false,
         showFinalTimeline: true,
         specialRoles: ['seer'],
       },
       discussionReadiness: null,
+      dayResolutionAcknowledgement: null,
       announcements: [],
       winner: null,
     },
@@ -88,6 +89,7 @@ export function makeSnapshot(
       resources: {},
       availableAction: null,
       readyForVote: false,
+      acknowledgedDayResolution: false,
       personalWinner: false,
     },
     host: {

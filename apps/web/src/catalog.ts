@@ -17,9 +17,12 @@ export const gameRuleCatalog: {
   roles: {
     werewolf: {
       name: 'Lobisomem',
-      short: 'Vota com a alcateia em uma vítima a cada noite.',
-      objective: 'Iguale ou supere em número todos os outros sobreviventes.',
-      targeting: 'Escolha uma pessoa viva que não seja Lobisomem.',
+      short:
+        'À noite, reconheça seus aliados e vote em segredo para escolher a vítima da alcateia. Durante o dia, misture-se à vila e desvie as suspeitas.',
+      objective:
+        'Sobreviva com a alcateia até que os Lobisomens vivos sejam tantos quanto todos os demais sobreviventes juntos.',
+      targeting:
+        'Em cada noite, escolha uma pessoa viva que não pertença à alcateia. Você pode trocar seu voto enquanto a fase estiver aberta.',
       rules: [
         'Os Lobisomens vivos conhecem uns aos outros e votam em segredo.',
         'Somente uma maioria única produz ataque; empate ou ausência de votos não ataca ninguém.',
@@ -29,10 +32,12 @@ export const gameRuleCatalog: {
     },
     villager: {
       name: 'Aldeão',
-      short: 'Observa, discute e vota durante o dia.',
-      objective: 'Ajude a Cidade a eliminar todos os Lobisomens.',
+      short:
+        'Você não possui poder noturno. Observe comportamentos, compare relatos, participe da discussão e use seu voto para proteger a vila.',
+      objective:
+        'Descubra e elimine todos os Lobisomens antes que a alcateia alcance a maioria.',
       targeting:
-        'Não possui alvo noturno; durante o dia vota em outra pessoa viva.',
+        'À noite, aguarde as ações dos outros papéis. Na votação diurna, escolha outra pessoa viva ou confirme uma abstenção.',
       rules: [
         'Aguarda o amanhecer sem ação própria durante a noite.',
         'A Cidade vence quando nenhum Lobisomem permanece vivo, salvo uma vitória especial anterior.',
@@ -41,10 +46,12 @@ export const gameRuleCatalog: {
     },
     hunter: {
       name: 'Caçador',
-      short: 'Ao morrer, pode levar uma pessoa viva consigo.',
-      objective: 'Proteja a Cidade e use seu último disparo com sabedoria.',
+      short:
+        'Jogue como membro da Cidade enquanto estiver vivo. Se morrer, uma última decisão será aberta para você disparar contra outro sobrevivente.',
+      objective:
+        'Ajude a Cidade a eliminar os Lobisomens e, ao morrer, use seu disparo para atingir a maior ameaça restante.',
       targeting:
-        'Depois de morrer, pode escolher uma pessoa que ainda esteja viva.',
+        'Somente após sua morte, escolha uma pessoa que ainda esteja viva. Confirme antes do prazo ou o disparo será perdido.',
       rules: [
         'Se o prazo acabar sem escolha, o disparo é perdido.',
         'A morte do alvo e todas as mortes decorrentes são resolvidas antes da verificação de vitória.',
@@ -53,11 +60,12 @@ export const gameRuleCatalog: {
     },
     seer: {
       name: 'Vidente',
-      short: 'Descobre o alinhamento de uma pessoa por noite.',
+      short:
+        'A cada noite, investigue discretamente uma pessoa e guarde o resultado para orientar a discussão sem se expor cedo demais.',
       objective:
-        'Encontre os Lobisomens sem revelar sua identidade cedo demais.',
+        'Identifique o alinhamento dos jogadores e conduza a Cidade até todos os Lobisomens serem eliminados.',
       targeting:
-        'Escolha outra pessoa viva; a Vidente não pode inspecionar a si mesma.',
+        'Escolha outra pessoa viva. Você não pode investigar a si mesma e recebe apenas o alinhamento, não o papel exato.',
       rules: [
         'O resultado revela apenas o alinhamento atual: Lobisomens, Cidade ou Neutro.',
         'A descoberta permanece privada para a Vidente.',
@@ -66,10 +74,12 @@ export const gameRuleCatalog: {
     },
     witch: {
       name: 'Bruxa',
-      short: 'Possui uma cura e um veneno, usados uma vez cada.',
-      objective: 'Mude o destino da noite a favor da Cidade.',
+      short:
+        'Você possui uma poção de cura e uma de veneno para toda a partida. Observe a vítima da alcateia e decida se vale a pena interferir.',
+      objective:
+        'Use seus recursos limitados no momento certo para manter aliados vivos e eliminar uma ameaça à Cidade.',
       targeting:
-        'A cura alcança o alvo atual da alcateia; o veneno exige outra pessoa viva.',
+        'A cura salva somente o alvo atual da alcateia. O veneno pode eliminar outra pessoa viva. Apenas uma poção pode ser usada por noite.',
       rules: [
         'Cada poção pode ser usada uma única vez na partida e somente uma das duas pode ser confirmada por noite.',
         'A cura cancela o ataque antes da possível interceptação do Guardião; o veneno é dano letal separado.',
@@ -78,10 +88,12 @@ export const gameRuleCatalog: {
     },
     doctor: {
       name: 'Médico',
-      short: 'Protege uma pessoa do ataque, sem repetir o alvo.',
-      objective: 'Mantenha a Cidade viva durante a noite.',
+      short:
+        'A cada noite, antecipe o alvo da alcateia e escolha alguém para proteger. Você pode proteger a si mesmo, mas precisa variar o paciente.',
+      objective:
+        'Impeça ataques decisivos da alcateia e ajude a Cidade a manter seus jogadores vivos.',
       targeting:
-        'Escolha qualquer pessoa viva, inclusive você, exceto o alvo da noite anterior.',
+        'Escolha qualquer pessoa viva, inclusive você, mas nunca a mesma pessoa protegida na noite imediatamente anterior.',
       rules: [
         'A proteção impede somente o ataque da alcateia.',
         'Veneno e mortes derivadas atravessam a proteção; um ataque bloqueado não aciona o Guardião.',
@@ -90,10 +102,12 @@ export const gameRuleCatalog: {
     },
     fool: {
       name: 'Bobo',
-      short: 'Vence pessoalmente se for expulso pela votação.',
-      objective: 'Convença a vila a expulsar você durante o dia.',
+      short:
+        'Você não possui ação noturna. Durante a discussão, tente parecer suspeito o suficiente para receber os votos da vila.',
+      objective:
+        'Conquiste sua vitória pessoal sendo expulso pela votação diurna.',
       targeting:
-        'Não possui habilidade com alvo; participa da votação enquanto estiver vivo.',
+        'Vote normalmente enquanto estiver vivo. Seu poder depende de ser o alvo escolhido pela vila, não de selecionar alguém.',
       rules: [
         'Apenas a expulsão pelo voto concede sua vitória pessoal; outras causas de morte não concedem.',
         'Sua vitória é adicional e não encerra a disputa principal.',
@@ -102,10 +116,12 @@ export const gameRuleCatalog: {
     },
     cupid: {
       name: 'Cupido',
-      short: 'Liga duas pessoas como amantes na primeira noite.',
-      objective: 'Ajude a Cidade, atento ao destino inseparável do casal.',
+      short:
+        'Na primeira noite, forme um casal. Depois dessa escolha única, participe das discussões e votações como membro da Cidade.',
+      objective:
+        'Ajude a Cidade a vencer, levando em conta que os amantes compartilham o destino e podem conquistar uma vitória própria.',
       targeting:
-        'Na primeira noite, escolha duas pessoas vivas e distintas; você pode ser uma delas.',
+        'Escolha exatamente duas pessoas vivas e diferentes na primeira noite. Você pode incluir a si mesmo no casal.',
       rules: [
         'Cada amante conhece somente a identidade do outro.',
         'Quando um amante morre, o outro morre em seguida; a cadeia inteira termina antes da vitória ser avaliada.',
@@ -115,10 +131,12 @@ export const gameRuleCatalog: {
     },
     guardian: {
       name: 'Guardião',
-      short: 'Morre no lugar de quem guarda contra a alcateia.',
-      objective: 'Intercepte o ataque certo para proteger a vila.',
+      short:
+        'A cada noite, escolha alguém para guardar. Se a alcateia atacar essa pessoa e o ataque não for bloqueado, você morre no lugar dela.',
+      objective:
+        'Proteja jogadores importantes e esteja disposto a se sacrificar para impedir uma morte decisiva.',
       targeting:
-        'Escolha outra pessoa viva; o Guardião não pode guardar a si mesmo.',
+        'Escolha outra pessoa viva. Você nunca pode guardar a si mesmo e a proteção vale apenas para aquela noite.',
       rules: [
         'Só intercepta um ataque da alcateia que ainda exista após cura e proteção do Médico.',
         'Não intercepta veneno nem mortes derivadas e morre no lugar do alvo guardado.',
@@ -127,25 +145,31 @@ export const gameRuleCatalog: {
     },
     mayor: {
       name: 'Prefeito',
-      short: 'Seu voto diurno secreto vale por dois.',
-      objective: 'Conduza a votação para livrar a Cidade dos Lobisomens.',
+      short:
+        'Você não recebe uma ação especial ou um botão próprio. Discuta e vote normalmente; enquanto estiver vivo, seu voto confirmado vale dois.',
+      objective:
+        'Use o peso secreto do seu voto para conduzir as expulsões e ajudar a Cidade a eliminar todos os Lobisomens.',
       targeting:
-        'Segue as opções normais da votação diurna enquanto estiver vivo.',
+        'Na votação diurna, escolha outra pessoa viva ou confirme uma abstenção. O servidor aplica automaticamente o peso dois ao seu voto em uma pessoa.',
       rules: [
-        'Seu último voto confirmado vale dois, sem revelar publicamente de onde veio o peso extra.',
-        'A identidade do Prefeito continua secreta até uma revelação geral.',
+        'Seu último voto confirmado vale dois; você pode alterá-lo enquanto a votação estiver aberta.',
+        'O peso extra é aplicado sem anunciar aos demais quem é o Prefeito.',
+        'Se você morrer, deixa de votar e não possui nenhuma ação adicional.',
       ],
       mark: 'P',
     },
     'little-girl': {
       name: 'Menina',
-      short: 'Pode espiar a alcateia, com 25% de risco de ser vista.',
-      objective: 'Descubra um Lobisomem sem ser detectada.',
+      short:
+        'À noite, acione a espionagem para tentar descobrir um membro vivo da alcateia. A informação recebida é privada, mas existe risco em cada tentativa.',
+      objective:
+        'Descubra Lobisomens e use essas pistas durante o dia sem deixar claro para a alcateia que você é a Menina.',
       targeting:
-        'Escolhe espiar ou se abster; o Lobisomem descoberto é sorteado pelo servidor.',
+        'Você não escolhe um alvo. Confirme a ação de espiar e o servidor sorteará um Lobisomem vivo para revelar a você.',
       rules: [
-        'Ao espiar, descobre privadamente um Lobisomem vivo.',
-        'Cada tentativa tem 25% de chance de revelar privadamente a Menina aos Lobisomens vivos.',
+        'Ao espiar, você descobre privadamente um Lobisomem vivo aleatório.',
+        'Cada espionagem tem 25% de chance de revelar sua identidade aos Lobisomens vivos.',
+        'Ser detectada não elimina você imediatamente, mas permite que a alcateia saiba quem atacar nas próximas noites.',
       ],
       mark: 'm',
     },
@@ -232,11 +256,13 @@ export const phaseCopy: Record<
 
 export const actionLabels: Record<
   GameActionType,
-  { title: string; submit: string }
+  { title: string; submit: string; instruction?: string }
 > = {
   'wolf-vote': {
-    title: 'Escolha da alcateia',
-    submit: 'Confirmar voto da alcateia',
+    title: 'Quem os Lobisomens devem matar?',
+    submit: 'Confirmar meu voto',
+    instruction:
+      'Cada Lobisomem vota em segredo. A alcateia atacará quem receber sozinho o maior número de votos; em caso de empate ou sem votos, ninguém será atacado.',
   },
   'seer-inspect': {
     title: 'Quem deseja inspecionar?',

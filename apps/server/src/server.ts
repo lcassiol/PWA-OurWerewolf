@@ -205,7 +205,7 @@ export function createApplication(options: CreateApplicationOptions) {
     }
 
     const roomMatch = url.pathname.match(
-      /^\/rooms\/([A-Za-z]{4})(?:\/(snapshot|reconnect|settings|ready|avatar|vote-ready|start|commands|session|return))?$/,
+      /^\/rooms\/([A-Za-z]{4})(?:\/(snapshot|reconnect|settings|ready|avatar|vote-ready|day-resolution-ok|start|commands|session|return))?$/,
     );
     const removeMatch = url.pathname.match(
       /^\/rooms\/([A-Za-z]{4})\/participants\/([0-9a-f-]{36})$/i,
@@ -247,6 +247,16 @@ export function createApplication(options: CreateApplicationOptions) {
       if (resource === 'vote-ready' && method === 'POST') {
         sendJson(response, 200, {
           snapshot: service.markReadyForVote(identity),
+        });
+        return;
+      }
+      if (resource === 'day-resolution-ok' && method === 'POST') {
+        const body = (await readJson(request)) as Record<string, unknown>;
+        sendJson(response, 200, {
+          snapshot: service.acknowledgeDayResolution(
+            identity,
+            body.expectedRound,
+          ),
         });
         return;
       }

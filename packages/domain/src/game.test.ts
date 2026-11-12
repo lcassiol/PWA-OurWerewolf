@@ -337,6 +337,13 @@ describe('game phase state machine', () => {
       phase: 'day-resolution',
       lastAbstainedPlayerIds: ['p2'],
     });
+    state = {
+      ...state,
+      requiredDecisionPlayerIds: ['p1', 'p2'],
+    };
+    state = completeDecision(state, 'p1');
+    expect(canAdvancePhase(state, 800)).toBe(false);
+    state = completeDecision(state, 'p2');
     state = advancePhase(state, { nowMs: 800, deadlineMs: 1_200 });
     expect(state).toMatchObject({ phase: 'night', round: 2, version: 6 });
   });

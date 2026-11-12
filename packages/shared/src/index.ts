@@ -83,6 +83,10 @@ export type PublicSnapshot = {
     readyCount: number;
     requiredCount: number;
   } | null;
+  dayResolutionAcknowledgement: {
+    acknowledgedCount: number;
+    requiredCount: number;
+  } | null;
   announcements: string[];
   winner: 'village' | 'werewolves' | 'lovers' | null;
 };
@@ -99,15 +103,28 @@ export type AvailableAction = ActionChoice & {
   alternatives?: ActionChoice[];
 };
 
+export const knowledgeFacts = [
+  'werewolf',
+  'pack-target',
+  'werewolves',
+  'village',
+  'neutral',
+  'lover',
+  'little-girl',
+] as const;
+
+export type KnowledgeFact = (typeof knowledgeFacts)[number];
+
 export type PrivateSnapshot = {
   playerId: string;
   role: RoleId | null;
   alignment: Alignment | null;
   objective: string | null;
-  knownPlayers: Array<{ playerId: string; fact: string }>;
+  knownPlayers: Array<{ playerId: string; fact: KnowledgeFact }>;
   resources: Record<string, boolean | number | string>;
   availableAction: AvailableAction | null;
   readyForVote: boolean;
+  acknowledgedDayResolution: boolean;
   personalWinner: boolean;
 };
 

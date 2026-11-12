@@ -37,7 +37,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Lobisomem',
     alignment: 'werewolves',
     summary:
-      'Conhece a alcateia viva e vota secretamente em uma vítima a cada noite.',
+      'Conhece os aliados vivos, vota em uma vítima à noite e tenta desviar as suspeitas durante o dia.',
     objective:
       'Iguale ou supere em número todos os outros jogadores sobreviventes.',
     actions: ['wolf-vote'],
@@ -47,7 +47,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Aldeão',
     alignment: 'village',
     summary:
-      'Não age à noite e participa da discussão e votação durante o dia.',
+      'Não age à noite; observa, discute e vota para encontrar os Lobisomens durante o dia.',
     objective: 'Elimine todos os Lobisomens.',
     actions: [],
   },
@@ -55,7 +55,8 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     id: 'hunter',
     name: 'Caçador',
     alignment: 'village',
-    summary: 'Ao morrer, pode eliminar um jogador que ainda esteja vivo.',
+    summary:
+      'Joga pela Cidade e, ao morrer, recebe uma última chance de eliminar outro sobrevivente.',
     objective: 'Elimine todos os Lobisomens.',
     actions: ['hunter-shoot'],
   },
@@ -64,7 +65,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Vidente',
     alignment: 'village',
     summary:
-      'Descobre privadamente o alinhamento de outro jogador vivo a cada noite.',
+      'Investiga outra pessoa viva por noite e descobre privadamente seu alinhamento.',
     objective: 'Elimine todos os Lobisomens.',
     actions: ['seer-inspect'],
   },
@@ -73,7 +74,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Bruxa',
     alignment: 'village',
     summary:
-      'Possui uma poção de cura e uma de veneno, usando no máximo uma por noite.',
+      'Possui uma cura e um veneno para toda a partida, podendo usar no máximo uma poção por noite.',
     objective: 'Elimine todos os Lobisomens.',
     actions: ['witch-heal', 'witch-poison'],
   },
@@ -82,7 +83,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Médico',
     alignment: 'village',
     summary:
-      'Protege um jogador vivo da alcateia, sem repetir o alvo em noites consecutivas.',
+      'Protege uma pessoa viva do ataque da alcateia, sem repetir o alvo em noites consecutivas.',
     objective: 'Elimine todos os Lobisomens.',
     actions: ['doctor-protect'],
   },
@@ -90,7 +91,8 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     id: 'fool',
     name: 'Bobo',
     alignment: 'neutral',
-    summary: 'Conquista uma vitória pessoal somente ao ser expulso na votação.',
+    summary:
+      'Não age à noite e busca uma vitória pessoal convencendo a vila a expulsá-lo na votação.',
     objective: 'Seja expulso pela vila durante o dia.',
     actions: [],
   },
@@ -98,7 +100,8 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     id: 'cupid',
     name: 'Cupido',
     alignment: 'village',
-    summary: 'Une dois jogadores vivos como amantes na primeira noite.',
+    summary:
+      'Une duas pessoas vivas como amantes na primeira noite e depois joga pela Cidade.',
     objective:
       'Elimine todos os Lobisomens, a menos que os amantes sejam o último par.',
     actions: ['cupid-link'],
@@ -108,7 +111,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Guardião',
     alignment: 'village',
     summary:
-      'Protege outro jogador e intercepta um ataque bem-sucedido da alcateia.',
+      'Guarda outra pessoa à noite e morre no lugar dela se interceptar o ataque da alcateia.',
     objective: 'Elimine todos os Lobisomens.',
     actions: ['guardian-protect'],
   },
@@ -116,7 +119,8 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     id: 'mayor',
     name: 'Prefeito',
     alignment: 'village',
-    summary: 'Enquanto estiver vivo, seu voto secreto vale por dois.',
+    summary:
+      'Não possui botão especial; enquanto estiver vivo, seu voto diurno confirmado vale dois em segredo.',
     objective: 'Elimine todos os Lobisomens.',
     actions: [],
   },
@@ -125,7 +129,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     name: 'Menina',
     alignment: 'village',
     summary:
-      'Pode descobrir um Lobisomem vivo aleatório, com 25% de risco de ser detectada.',
+      'Espiona sem escolher alvo e descobre um Lobisomem vivo aleatório, com 25% de risco de ser detectada.',
     objective: 'Elimine todos os Lobisomens.',
     actions: ['little-girl-spy'],
   },

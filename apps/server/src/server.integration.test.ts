@@ -197,7 +197,7 @@ void test('room edge cases preserve authorization and frozen lobby state', async
       headers: { cookie: host.cookie },
       body: JSON.stringify({
         discussionMinutes: 7,
-        allowNoExile: false,
+        allowNoExile: true,
         hideSpecialRoles: true,
         showFinalTimeline: true,
         specialRoles: ['seer'],

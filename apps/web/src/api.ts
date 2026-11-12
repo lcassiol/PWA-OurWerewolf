@@ -98,6 +98,14 @@ export const api = {
     snapshotRequest(`/rooms/${encodeURIComponent(roomCode)}/vote-ready`, {
       method: 'POST',
     }),
+  acknowledgeDayResolution: (roomCode: string, expectedRound: number) =>
+    snapshotRequest(
+      `/rooms/${encodeURIComponent(roomCode)}/day-resolution-ok`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ expectedRound }),
+      },
+    ),
   removePlayer: (roomCode: string, playerId: string) =>
     snapshotRequest(
       `/rooms/${encodeURIComponent(roomCode)}/participants/${encodeURIComponent(playerId)}`,

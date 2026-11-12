@@ -13,6 +13,7 @@ import {
   werewolfCount,
 } from '../catalog';
 import type { NetworkState } from '../hooks';
+import { cityForRoom } from '../room-city';
 import { themeCatalog } from '../themeCatalog';
 import { ConnectionBadge } from './ConnectionBadge';
 import { ParticipantAvatar } from './ParticipantAvatar';
@@ -73,11 +74,16 @@ export function LobbyScreen(props: LobbyScreenProps) {
   const self = publicState.players.find(
     (player) => player.id === privateState.playerId,
   );
+  const connectedCount = publicState.players.filter(
+    (player) => player.connection === 'connected',
+  ).length;
   const visibleStartBlockers =
     host?.startBlockers.filter(
       (blocker) => blocker !== 'invalid-composition',
     ) ?? [];
   const [shareMessage, setShareMessage] = useState('');
+  const city = cityForRoom(publicState.roomCode);
+  const themeArticle = themeCatalog[publicState.themeId].article;
 
   const share = async () => {
     const text = `Entre na minha partida de Vila da Lua com o código ${publicState.roomCode}`;
@@ -127,8 +133,12 @@ export function LobbyScreen(props: LobbyScreenProps) {
         <p className="sr-status" role="status" aria-live="polite">
           {shareMessage}
         </p>
-        <h1 id="lobby-title">A vila se reúne</h1>
-        <p>{publicState.players.length} de 20 lugares ocupados</p>
+        <h1 id="lobby-title">
+          A vila se reúne em {city} durante {themeArticle}...
+        </h1>
+        <p className="room-occupancy room-occupancy--mobile">
+          {connectedCount}/20 conectados
+        </p>
       </section>
 
       <div className="lobby-grid">
@@ -139,6 +149,9 @@ export function LobbyScreen(props: LobbyScreenProps) {
           <div className="section-heading">
             <div>
               <p className="eyebrow">Ao redor da fogueira</p>
+              <p className="participant-occupancy">
+                {connectedCount}/20 conectados
+              </p>
               <h2 id="participants-title">Participantes</h2>
             </div>
             <span className="count-medallion">
@@ -147,7 +160,12 @@ export function LobbyScreen(props: LobbyScreenProps) {
           </div>
           <ul className="participant-list">
             {publicState.players.map((player) => (
-              <li key={player.id}>
+              <li
+                className={
+                  player.id === privateState.playerId ? 'is-current-user' : ''
+                }
+                key={player.id}
+              >
                 {player.id === privateState.playerId ? (
                   <AvatarPicker
                     avatarId={player.avatarId}
@@ -272,9 +290,6 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
   const [minutes, setMinutes] = useState(
     snapshot.public.settings.discussionMinutes,
   );
-  const [allowNoExile, setAllowNoExile] = useState(
-    snapshot.public.settings.allowNoExile,
-  );
   const [roles, setRoles] = useState<RoleId[]>(
     snapshot.host?.configuredSpecialRoles ??
       snapshot.public.settings.specialRoles,
@@ -307,7 +322,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
     setRoles(next);
     persist({
       discussionMinutes: minutes,
-      allowNoExile,
+      allowNoExile: false,
       hideSpecialRoles,
       showFinalTimeline,
       specialRoles: next,
@@ -320,7 +335,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
     setHideSpecialRoles(hidden);
     persist({
       discussionMinutes: minutes,
-      allowNoExile,
+      allowNoExile: false,
       hideSpecialRoles: hidden,
       showFinalTimeline,
       specialRoles: next,
@@ -351,7 +366,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
               setMinutes(next);
               persist({
                 discussionMinutes: next,
-                allowNoExile,
+                allowNoExile: false,
                 hideSpecialRoles,
                 showFinalTimeline,
                 specialRoles: roles,
@@ -368,29 +383,6 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
 
         <label className="switch-row">
           <span>
-            Permitir “não expulsar”
-            <small>A vila pode encerrar o dia sem eliminação.</small>
-          </span>
-          <input
-            type="checkbox"
-            checked={allowNoExile}
-            disabled={!connected}
-            onChange={(event) => {
-              const next = event.target.checked;
-              setAllowNoExile(next);
-              persist({
-                discussionMinutes: minutes,
-                allowNoExile: next,
-                hideSpecialRoles,
-                showFinalTimeline,
-                specialRoles: roles,
-              });
-            }}
-          />
-        </label>
-
-        <label className="switch-row">
-          <span>
             Exibir linha do tempo decisiva
             <small>
               Ao final, mostra as ações e acontecimentos que definiram a
@@ -398,6 +390,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
             </small>
           </span>
           <input
+            className="timeline-toggle"
             type="checkbox"
             checked={showFinalTimeline}
             disabled={!connected}
@@ -406,7 +399,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
               setShowFinalTimeline(next);
               persist({
                 discussionMinutes: minutes,
-                allowNoExile,
+                allowNoExile: false,
                 hideSpecialRoles,
                 showFinalTimeline: next,
                 specialRoles: roles,
@@ -505,52 +498,50 @@ function SettingsSummary({
   return (
     <section className="panel settings-summary" aria-labelledby="rules-title">
       <ThemeArtwork themeId={themeId} />
-      <p className="eyebrow">Definido pelo anfitrião</p>
-      <h2 id="rules-title">Regras da partida</h2>
-      <dl>
-        <div>
-          <dt>Discussão</dt>
-          <dd>{settings.discussionMinutes} min</dd>
+      <div className="settings-summary__controls">
+        <p className="eyebrow">Definido pelo anfitrião</p>
+        <h2 id="rules-title">Regras da partida</h2>
+        <dl>
+          <div>
+            <dt>Discussão</dt>
+            <dd>{settings.discussionMinutes} min</dd>
+          </div>
+          <div>
+            <dt>Lobisomens</dt>
+            <dd>{werewolfCount(playerCount)}</dd>
+          </div>
+          <div>
+            <dt>Especiais</dt>
+            <dd>
+              {settings.hideSpecialRoles
+                ? 'Ocultos'
+                : settings.specialRoles.length}
+            </dd>
+          </div>
+          <div>
+            <dt>Exibir linha do tempo decisiva:</dt>
+            <dd>{settings.showFinalTimeline ? 'Sim' : 'Não'}</dd>
+          </div>
+        </dl>
+        <div className="selected-roles" aria-label="Papéis selecionados">
+          <h3>Papéis selecionados</h3>
+          {settings.hideSpecialRoles ? (
+            <p>O anfitrião manteve a composição em segredo.</p>
+          ) : settings.specialRoles.length > 0 ? (
+            <ul>
+              {settings.specialRoles.map((role) => (
+                <li key={role}>
+                  <span aria-hidden="true">{roleCatalog[role].mark}</span>
+                  {roleCatalog[role].name}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Nenhum papel especial selecionado.</p>
+          )}
         </div>
-        <div>
-          <dt>Lobisomens</dt>
-          <dd>{werewolfCount(playerCount)}</dd>
-        </div>
-        <div>
-          <dt>A vila pode encerrar o dia sem eliminação:</dt>
-          <dd>{settings.allowNoExile ? 'Sim' : 'Não'}</dd>
-        </div>
-        <div>
-          <dt>Especiais</dt>
-          <dd>
-            {settings.hideSpecialRoles
-              ? 'Ocultos'
-              : settings.specialRoles.length}
-          </dd>
-        </div>
-        <div>
-          <dt>Exibir linha do tempo decisiva:</dt>
-          <dd>{settings.showFinalTimeline ? 'Sim' : 'Não'}</dd>
-        </div>
-      </dl>
-      <div className="selected-roles" aria-label="Papéis selecionados">
-        <h3>Papéis selecionados</h3>
-        {settings.hideSpecialRoles ? (
-          <p>O anfitrião manteve a composição em segredo.</p>
-        ) : settings.specialRoles.length > 0 ? (
-          <ul>
-            {settings.specialRoles.map((role) => (
-              <li key={role}>
-                <span aria-hidden="true">{roleCatalog[role].mark}</span>
-                {roleCatalog[role].name}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>Nenhum papel especial selecionado.</p>
-        )}
+        <RoleReference />
       </div>
-      <RoleReference />
     </section>
   );
 }

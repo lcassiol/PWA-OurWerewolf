@@ -47,6 +47,15 @@ describe('carta secreta', () => {
     expect(
       screen.getByRole('heading', { name: 'Vidente' }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: 'Ilustração do papel Vidente' }),
+    ).toHaveAttribute('src');
+    expect(
+      screen.getByRole('heading', { name: 'O que fazer' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Você não pode investigar a si mesma/),
+    ).toBeInTheDocument();
 
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
@@ -54,6 +63,9 @@ describe('carta secreta', () => {
     });
     fireEvent(document, new Event('visibilitychange'));
     expect(screen.queryByText('Vidente')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('img', { name: 'Ilustração do papel Vidente' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Revelar minha carta' }),
     ).toBeInTheDocument();
@@ -71,7 +83,7 @@ describe('carta secreta', () => {
     await user.click(
       screen.getByRole('button', { name: 'Revelar minha carta' }),
     );
-    expect(screen.getByText('Encontre a alcateia.')).toBeInTheDocument();
+    expect(screen.getByText(/Identifique o alinhamento/)).toBeInTheDocument();
 
     rerender(
       <SecretRoleCard
@@ -80,21 +92,23 @@ describe('carta secreta', () => {
         canReveal={false}
       />,
     );
-    expect(screen.queryByText('Encontre a alcateia.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Identifique o alinhamento/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Aguardando conexão segura' }),
     ).toBeDisabled();
   });
 
-  it('mostra o apelido público junto de cada conhecimento privado', async () => {
+  it('traduz o conhecimento privado e mostra o apelido público', async () => {
     const user = userEvent.setup();
     render(
       <SecretRoleCard
         privateState={{
           ...privateState,
           knownPlayers: [
-            { playerId: 'p2', fact: 'Pertence à alcateia.' },
-            { playerId: 'p3', fact: 'É seu amor.' },
+            { playerId: 'p2', fact: 'werewolves' },
+            { playerId: 'p3', fact: 'lover' },
           ],
         }}
         players={makeSnapshot().public.players}
@@ -107,8 +121,9 @@ describe('carta secreta', () => {
 
     expect(screen.getByText('Bento')).toBeInTheDocument();
     expect(screen.getByText('Cora')).toBeInTheDocument();
-    expect(screen.getByText('Pertence à alcateia.')).toBeInTheDocument();
+    expect(screen.getByText('Alinhamento: Lobisomens.')).toBeInTheDocument();
     expect(screen.getByText('É seu amor.')).toBeInTheDocument();
+    expect(screen.queryByText('werewolves')).not.toBeInTheDocument();
   });
 });
 
@@ -131,10 +146,129 @@ describe('fases e decisões', () => {
         targets: ['p2', 'p3'],
         minTargets: 1,
         maxTargets: 1,
-        allowAbstain: false,
+        allowAbstain: true,
       },
     },
     host: null,
+  });
+
+  it('aguarda o OK de todos no resumo do dia, inclusive de eliminados', async () => {
+    const user = userEvent.setup();
+    const onAcknowledge = vi.fn().mockResolvedValue(undefined);
+    const dayResolution = makeSnapshot({
+      public: {
+        ...makeSnapshot().public,
+        status: 'playing',
+        phase: 'day-resolution',
+        round: 1,
+        deadline: null,
+        players: makeSnapshot().public.players.map((player) =>
+          player.id === 'p1' ? { ...player, alive: false } : player,
+        ),
+        dayResolutionAcknowledgement: {
+          acknowledgedCount: 0,
+          requiredCount: 6,
+        },
+        announcements: ['Ninguém foi expulso.'],
+      },
+    });
+    const props = {
+      network: 'connected' as const,
+      privateFresh: true,
+      busy: false,
+      message: null,
+      onCommand: vi.fn(),
+      onReadyForVote: vi.fn(),
+      onAcknowledgeDayResolution: onAcknowledge,
+      onAvatarChange: vi.fn(),
+      onReturn: vi.fn(),
+      onInstall: vi.fn(),
+    };
+    const { rerender } = render(
+      <GameScreen snapshot={dayResolution} {...props} />,
+    );
+
+    expect(screen.getByText('0 de 6 confirmaram')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'OK, continuar' }));
+    expect(onAcknowledge).toHaveBeenCalledOnce();
+
+    rerender(
+      <GameScreen
+        snapshot={makeSnapshot({
+          ...dayResolution,
+          public: {
+            ...dayResolution.public,
+            dayResolutionAcknowledgement: {
+              acknowledgedCount: 1,
+              requiredCount: 6,
+            },
+          },
+          private: {
+            ...dayResolution.private,
+            acknowledgedDayResolution: true,
+          },
+        })}
+        {...props}
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: 'OK confirmado' }),
+    ).toBeDisabled();
+  });
+
+  it('explica que o voto da alcateia escolhe quem os Lobisomens matarão', async () => {
+    const user = userEvent.setup();
+    const onCommand = vi.fn().mockResolvedValue(true);
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...makeSnapshot().public,
+            status: 'playing',
+            phase: 'first-night',
+            round: 1,
+          },
+          private: {
+            ...makeSnapshot().private,
+            role: 'werewolf',
+            alignment: 'werewolves',
+            availableAction: {
+              type: 'wolf-vote',
+              targets: ['p2', 'p3'],
+              minTargets: 1,
+              maxTargets: 1,
+              allowAbstain: true,
+            },
+          },
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={onCommand}
+        onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Quem os Lobisomens devem matar?',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Cada Lobisomem vota em segredo/),
+    ).toHaveTextContent(/ninguém será atacado/);
+    await user.click(screen.getByLabelText('Bento'));
+    await user.click(
+      screen.getByRole('button', { name: 'Confirmar meu voto' }),
+    );
+    expect(onCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'wolf-vote', targets: ['p2'] }),
+    );
   });
 
   it('permite declarar prontidão durante a discussão e mostra a maioria', async () => {
@@ -165,6 +299,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={vi.fn()}
         onReadyForVote={onReadyForVote}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -180,7 +315,7 @@ describe('fases e decisões', () => {
 
   it('envia voto com versão e fase autoritativas', async () => {
     const user = userEvent.setup();
-    const onCommand = vi.fn().mockResolvedValue(undefined);
+    const onCommand = vi.fn().mockResolvedValue(true);
     render(
       <GameScreen
         snapshot={votingSnapshot}
@@ -190,6 +325,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -198,7 +334,9 @@ describe('fases e decisões', () => {
 
     expect(screen.getByRole('timer')).toHaveAccessibleName(/Tempo restante/);
     await user.click(screen.getByLabelText('Bento'));
-    await user.click(screen.getByRole('button', { name: 'Confirmar voto' }));
+    const submit = screen.getByRole('button', { name: 'Confirmar voto' });
+    await user.click(submit);
+    expect(submit).toHaveClass('is-confirmed');
     expect(onCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedVersion: 3,
@@ -207,9 +345,11 @@ describe('fases e decisões', () => {
         targets: ['p2'],
       }),
     );
+    await user.click(screen.getByLabelText('Cora'));
+    expect(submit).not.toHaveClass('is-confirmed');
   });
 
-  it('bloqueia comandos offline e oferece a opção sem expulsão', () => {
+  it('bloqueia comandos enquanto estiver offline', () => {
     render(
       <GameScreen
         snapshot={votingSnapshot}
@@ -219,6 +359,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={vi.fn()}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -239,7 +380,7 @@ describe('fases e decisões', () => {
     expect(screen.getByText(/Nenhuma ação será enviada/)).toBeInTheDocument();
   });
 
-  it('envia a opção sem expulsão como alvo do voto', async () => {
+  it('permite abstenção individual na votação', async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn().mockResolvedValue(undefined);
     render(
@@ -251,18 +392,20 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
       />,
     );
 
-    await user.click(screen.getByLabelText('Não expulsar'));
+    expect(screen.queryByLabelText('Não expulsar')).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText('Abster-se desta ação'));
     await user.click(
-      screen.getByRole('button', { name: 'Confirmar sem expulsão' }),
+      screen.getByRole('button', { name: 'Confirmar abstenção' }),
     );
     expect(onCommand).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'day-vote', targets: ['no-exile'] }),
+      expect.objectContaining({ action: 'day-vote', targets: [] }),
     );
   });
 
@@ -305,6 +448,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -350,6 +494,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -383,6 +528,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -412,6 +558,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={onCommand}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={vi.fn()}
         onInstall={vi.fn()}
@@ -469,6 +616,7 @@ describe('fases e decisões', () => {
         message={null}
         onCommand={vi.fn()}
         onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
         onAvatarChange={vi.fn()}
         onReturn={onReturn}
         onInstall={vi.fn()}

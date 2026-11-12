@@ -31,7 +31,7 @@ function fixture(
   service.setConnected(host.identity, true);
   service.updateSettings(host.identity, {
     discussionMinutes: 1,
-    allowNoExile: true,
+    allowNoExile: false,
     hideSpecialRoles: false,
     showFinalTimeline,
     specialRoles,
@@ -240,6 +240,33 @@ void test('a timed-out empty night stage chains directly to dawn', () => {
   }
 });
 
+void test('seer knowledge remains private from villagers and every other role', () => {
+  const { database, service, members } = fixture(['seer']);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const seer = byRole(service, members, 'seer');
+    submit(service, wolf, 'wolf-vote', []);
+    assert.equal(
+      service.project(seer.identity).private.availableAction?.type,
+      'seer-inspect',
+    );
+    submit(service, seer, 'seer-inspect', [wolf.identity.participantId]);
+
+    assert.deepEqual(service.project(seer.identity).private.knownPlayers, [
+      { playerId: wolf.identity.participantId, fact: 'werewolves' },
+    ]);
+    for (const member of members) {
+      if (member === seer) continue;
+      assert.deepEqual(
+        service.project(member.identity).private.knownPlayers,
+        [],
+      );
+    }
+  } finally {
+    database.close();
+  }
+});
+
 void test('Little Girl exposes a deliberate spy action, not an abstention', () => {
   const { database, service, members } = fixture(['little-girl']);
   try {
@@ -320,6 +347,10 @@ void test('day votes resolve when voting closes and results are visible in day-r
     submit(service, wolf, 'wolf-vote', []);
     expire(service, database);
     expire(service, database);
+    const vote = service.project(host.identity).private.availableAction;
+    assert.equal(vote?.type, 'day-vote');
+    assert.equal(vote?.allowAbstain, true);
+    assert.ok(!vote?.targets.includes('no-exile'));
     for (const member of members) submit(service, member, 'day-vote', []);
     const result = service.project(host.identity);
     assert.equal(result.public.phase, 'day-resolution');
@@ -329,6 +360,39 @@ void test('day votes resolve when voting closes and results are visible in day-r
       ),
     );
     assert.equal(effectCount(database, 'day-vote-result'), 1);
+  } finally {
+    database.close();
+  }
+});
+
+void test('an exile is announced only once in day-resolution', () => {
+  const { database, service, members } = fixture([]);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const target = byRole(service, members, 'villager');
+    submit(service, wolf, 'wolf-vote', []);
+    expire(service, database);
+    expire(service, database);
+    for (const member of members) {
+      submit(
+        service,
+        member,
+        'day-vote',
+        member === target ? [] : [target.identity.participantId],
+      );
+    }
+
+    const resolution = service.project(target.identity);
+    const targetName = resolution.public.players.find(
+      (player) => player.id === target.identity.participantId,
+    )?.nickname;
+    assert.ok(targetName);
+    assert.ok(
+      resolution.public.announcements.includes(`${targetName} foi expulso.`),
+    );
+    assert.ok(
+      !resolution.public.announcements.includes(`${targetName} foi eliminado.`),
+    );
   } finally {
     database.close();
   }

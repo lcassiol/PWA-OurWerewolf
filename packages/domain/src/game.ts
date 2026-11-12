@@ -433,8 +433,7 @@ export function canAdvancePhase(state: GameState, nowMs: number): boolean {
   return (
     deadlineReached ||
     allRequiredComplete ||
-    state.phase === 'dawn' ||
-    state.phase === 'day-resolution'
+    state.phase === 'dawn'
   );
 }
 

@@ -8,6 +8,7 @@ import spiritVeilImage from './assets/themes/spirit-veil.jpg';
 export type ThemeDefinition = {
   id: ThemeId;
   name: string;
+  article: 'a' | 'o';
   atmosphere: string;
   image: string;
   background: string;
@@ -21,6 +22,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
   'blue-moon': {
     id: 'blue-moon',
     name: 'Lua Azul',
+    article: 'a',
     atmosphere: 'Mistério clássico',
     image: blueMoonImage,
     background: '#0B1020',
@@ -32,6 +34,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
   'cursed-forest': {
     id: 'cursed-forest',
     name: 'Floresta Maldita',
+    article: 'a',
     atmosphere: 'Fantasia e natureza',
     image: cursedForestImage,
     background: '#0D1915',
@@ -43,6 +46,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
   'blood-moon': {
     id: 'blood-moon',
     name: 'Lua de Sangue',
+    article: 'a',
     atmosphere: 'Terror e tensão',
     image: bloodMoonImage,
     background: '#190F16',
@@ -54,6 +58,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
   'spirit-veil': {
     id: 'spirit-veil',
     name: 'Véu dos Espíritos',
+    article: 'o',
     atmosphere: 'Magia e sobrenatural',
     image: spiritVeilImage,
     background: '#151126',
@@ -65,6 +70,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
   'autumn-legend': {
     id: 'autumn-legend',
     name: 'Lenda de Outono',
+    article: 'a',
     atmosphere: 'Folclore e aconchego',
     image: autumnLegendImage,
     background: '#231A16',

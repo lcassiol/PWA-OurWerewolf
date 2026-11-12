@@ -16,6 +16,7 @@ function mockApi(): ApiClient {
     updateSettings: vi.fn().mockResolvedValue(makeSnapshot()),
     startGame: vi.fn().mockResolvedValue(makeSnapshot()),
     markReadyForVote: vi.fn().mockResolvedValue(makeSnapshot()),
+    acknowledgeDayResolution: vi.fn().mockResolvedValue(makeSnapshot()),
     removePlayer: vi.fn().mockResolvedValue(makeSnapshot()),
     leaveRoom: vi.fn().mockResolvedValue(undefined),
     returnAfterGame: vi.fn().mockResolvedValue(makeSnapshot()),
@@ -24,6 +25,29 @@ function mockApi(): ApiClient {
 }
 
 describe('abertura offline', () => {
+  it.each(['unauthorized', 'forbidden'])(
+    'abre a tela inicial sem avisar sobre sessão em uma primeira visita com %s',
+    async (code) => {
+      Object.defineProperty(navigator, 'onLine', {
+        configurable: true,
+        value: true,
+      });
+      const apiClient = mockApi();
+      vi.mocked(apiClient.restoreSession).mockRejectedValue(
+        new ApiRequestError('Sessão inválida', code),
+      );
+
+      render(<App apiClient={apiClient} />);
+
+      expect(
+        await screen.findByRole('button', { name: 'Criar minha vila' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/sessão não é mais válida/i),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it('não consulta nem exibe snapshot antigo como partida ativa', async () => {
     Object.defineProperty(navigator, 'onLine', {
       configurable: true,
@@ -54,6 +78,11 @@ describe('abertura offline', () => {
     await waitFor(() =>
       expect(screen.getByText(/Fase atual: lobby/)).toBeInTheDocument(),
     );
+    expect(
+      screen.getByRole('heading', {
+        name: /A vila se reúne em .+ durante o\.\.\./,
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
     expect(document.documentElement).toHaveAttribute(
       'data-theme',
@@ -74,7 +103,7 @@ describe('abertura offline', () => {
         .mockRejectedValueOnce(new ApiRequestError('Sessão inválida', code));
       render(<App apiClient={apiClient} />);
       expect(
-        await screen.findByRole('heading', { name: 'A vila se reúne' }),
+        await screen.findByRole('heading', { name: /A vila se reúne em/ }),
       ).toBeInTheDocument();
 
       window.dispatchEvent(new Event('online'));

@@ -109,6 +109,15 @@ describe('cliente HTTP', () => {
       expect.objectContaining({ method: 'POST' }),
     );
 
+    await api.acknowledgeDayResolution('LUAR', 2);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/rooms/LUAR/day-resolution-ok',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ expectedRound: 2 }),
+      }),
+    );
+
     await api.returnAfterGame('LUAR');
     expect(fetchMock).toHaveBeenLastCalledWith(
       '/api/rooms/LUAR/return',

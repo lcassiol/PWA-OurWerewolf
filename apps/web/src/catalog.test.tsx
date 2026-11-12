@@ -15,6 +15,12 @@ describe('catálogo de regras', () => {
     }
     expect(roleCatalog.witch.rules.join(' ')).toMatch(/somente uma/i);
     expect(roleCatalog.cupid.rules.join(' ')).toMatch(/cadeia inteira/i);
+    expect(roleCatalog.mayor.short).toMatch(/não recebe uma ação especial/i);
+    expect(roleCatalog.mayor.targeting).toMatch(/peso dois/i);
+    expect(roleCatalog['little-girl'].targeting).toMatch(
+      /não escolhe um alvo/i,
+    );
+    expect(roleCatalog['little-girl'].rules.join(' ')).toMatch(/25%/);
     expect(gameRuleCatalog.resolutionPriority.join(' ')).toMatch(/Guardião/i);
     expect(gameRuleCatalog.specialVictories.join(' ')).toMatch(/Bobo/i);
   });
@@ -41,6 +47,8 @@ describe('catálogo de regras', () => {
       ]),
     );
     expect(Object.keys(themeCatalog)).toHaveLength(5);
+    expect(themeCatalog['spirit-veil'].article).toBe('o');
+    expect(themeCatalog['autumn-legend'].article).toBe('a');
   });
 
   it('expõe as regras completas também para quem não é anfitrião', async () => {

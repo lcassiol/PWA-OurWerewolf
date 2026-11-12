@@ -25,6 +25,7 @@ type GameScreenProps = {
   message: string | null;
   onCommand: (command: GameCommand) => Promise<boolean>;
   onReadyForVote: () => Promise<void>;
+  onAcknowledgeDayResolution: () => Promise<void>;
   onAvatarChange: (avatarId: AvatarId) => Promise<void>;
   onReturn: () => Promise<void>;
   onInstall: () => void;
@@ -38,6 +39,7 @@ export function GameScreen({
   message,
   onCommand,
   onReadyForVote,
+  onAcknowledgeDayResolution,
   onAvatarChange,
   onReturn,
   onInstall,
@@ -116,7 +118,11 @@ export function GameScreen({
 
         <section className="panel phase-panel" aria-labelledby="action-title">
           {currentPhase === 'dawn' || currentPhase === 'day-resolution' ? (
-            <AnnouncementPanel snapshot={snapshot} />
+            <AnnouncementPanel
+              snapshot={snapshot}
+              disabled={busy || network !== 'connected'}
+              onAcknowledge={onAcknowledgeDayResolution}
+            />
           ) : currentPhase === 'discussion' ? (
             <DiscussionPanel
               readiness={publicState.discussionReadiness}
@@ -132,7 +138,6 @@ export function GameScreen({
               key={`${publicState.phase}-${snapshot.private.availableAction.type}`}
               action={snapshot.private.availableAction}
               players={publicState.players}
-              allowNoExile={publicState.settings.allowNoExile}
               expectedVersion={publicState.version}
               expectedPhase={currentPhase}
               disabled={busy || network !== 'connected'}
@@ -170,7 +175,6 @@ export function GameScreen({
 function ActionPanel({
   action,
   players,
-  allowNoExile,
   expectedVersion,
   expectedPhase,
   disabled,
@@ -178,7 +182,6 @@ function ActionPanel({
 }: {
   action: AvailableAction;
   players: PlayerSummary[];
-  allowNoExile: boolean;
   expectedVersion: number;
   expectedPhase: GameCommand['expectedPhase'];
   disabled: boolean;
@@ -189,7 +192,6 @@ function ActionPanel({
   const selectedAction =
     choices.find((choice) => choice.type === actionType) ?? action;
   const [selected, setSelected] = useState<string[]>([]);
-  const [noExile, setNoExile] = useState(false);
   const [abstain, setAbstain] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const commandId = useRef(createCommandId());
@@ -201,7 +203,7 @@ function ActionPanel({
   const hasValidTargets =
     selected.length >= selectedAction.minTargets &&
     selected.length <= selectedAction.maxTargets;
-  const canSubmit = hasValidTargets || noExile || abstain;
+  const canSubmit = hasValidTargets || abstain;
 
   const changeIntent = () => {
     commandId.current = createCommandId();
@@ -210,7 +212,6 @@ function ActionPanel({
 
   const choose = (id: string) => {
     changeIntent();
-    setNoExile(false);
     setAbstain(false);
     setSelected((current) => {
       if (current.includes(id))
@@ -229,7 +230,7 @@ function ActionPanel({
       expectedVersion,
       expectedPhase,
       action: selectedAction.type,
-      targets: noExile ? ['no-exile'] : abstain ? [] : selected,
+      targets: abstain ? [] : selected,
     });
     if (confirmed) {
       setSubmitted(true);
@@ -253,7 +254,6 @@ function ActionPanel({
                 changeIntent();
                 setActionType(choice.type);
                 setSelected([]);
-                setNoExile(false);
                 setAbstain(false);
               }}
             >
@@ -263,9 +263,10 @@ function ActionPanel({
         </div>
       ) : null}
       <p className="muted-copy">
-        {selectedAction.maxTargets > 1
-          ? `Selecione ${selectedAction.minTargets} pessoas diferentes.`
-          : 'Você pode mudar a escolha enquanto a fase estiver aberta.'}
+        {copy.instruction ??
+          (selectedAction.maxTargets > 1
+            ? `Selecione ${selectedAction.minTargets} pessoas diferentes.`
+            : 'Você pode mudar a escolha enquanto a fase estiver aberta.')}
       </p>
       <fieldset className="target-list">
         <legend className="visually-hidden">Alvos disponíveis</legend>
@@ -296,35 +297,6 @@ function ActionPanel({
             </span>
           </label>
         ))}
-        {isDayVote && allowNoExile ? (
-          <label
-            className={
-              noExile
-                ? 'target-option no-exile is-selected'
-                : 'target-option no-exile'
-            }
-          >
-            <input
-              type="radio"
-              name="target"
-              aria-label="Não expulsar"
-              checked={noExile}
-              onChange={() => {
-                setSelected([]);
-                setNoExile(true);
-                setAbstain(false);
-                changeIntent();
-              }}
-            />
-            <span className="target-avatar" aria-hidden="true">
-              —
-            </span>
-            <span>Não expulsar</span>
-            <span className="target-check" aria-hidden="true">
-              ✓
-            </span>
-          </label>
-        ) : null}
         {selectedAction.allowAbstain ? (
           <label
             className={
@@ -340,7 +312,6 @@ function ActionPanel({
               checked={abstain}
               onChange={() => {
                 setSelected([]);
-                setNoExile(false);
                 setAbstain(true);
                 changeIntent();
               }}
@@ -356,15 +327,11 @@ function ActionPanel({
         ) : null}
       </fieldset>
       <button
-        className="primary-button"
+        className={`primary-button${isDayVote && submitted ? ' is-confirmed' : ''}`}
         type="submit"
         disabled={disabled || !canSubmit}
       >
-        {noExile
-          ? 'Confirmar sem expulsão'
-          : abstain
-            ? 'Confirmar abstenção'
-            : copy.submit}
+        {abstain ? 'Confirmar abstenção' : copy.submit}
       </button>
       {submitted ? (
         <p className="action-confirmed" role="status">
@@ -392,9 +359,17 @@ function PrivateUnavailablePanel({ network }: { network: NetworkState }) {
   );
 }
 
-function AnnouncementPanel({ snapshot }: { snapshot: GameSnapshot }) {
+function AnnouncementPanel({
+  snapshot,
+  disabled,
+  onAcknowledge,
+}: {
+  snapshot: GameSnapshot;
+  disabled: boolean;
+  onAcknowledge: () => Promise<void>;
+}) {
   const announcements = snapshot.public.announcements;
-  const eliminated = snapshot.public.players.filter((player) => !player.alive);
+  const acknowledgement = snapshot.public.dayResolutionAcknowledgement;
   return (
     <div className="announcement-panel" aria-live="polite">
       <p className="eyebrow">Notícias da praça</p>
@@ -412,11 +387,26 @@ function AnnouncementPanel({ snapshot }: { snapshot: GameSnapshot }) {
       ) : (
         <p>O servidor está preparando o anúncio.</p>
       )}
-      {eliminated.length > 0 ? (
-        <p className="eliminated-names">
-          Fora da crônica:{' '}
-          {eliminated.map((player) => player.nickname).join(', ')}
-        </p>
+      {snapshot.public.phase === 'day-resolution' && acknowledgement ? (
+        <div className="day-resolution-confirmation">
+          <p className="discussion-ready-count" aria-live="polite">
+            {acknowledgement.acknowledgedCount} de{' '}
+            {acknowledgement.requiredCount} confirmaram
+          </p>
+          <p>
+            A próxima rodada começa quando todos confirmarem que viram o resumo.
+          </p>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={disabled || snapshot.private.acknowledgedDayResolution}
+            onClick={() => void onAcknowledge()}
+          >
+            {snapshot.private.acknowledgedDayResolution
+              ? 'OK confirmado'
+              : 'OK, continuar'}
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -435,7 +425,7 @@ function WaitingPanel({ phase }: { phase: GameSnapshot['public']['phase'] }) {
       <h2 id="action-title">
         {isDiscussion
           ? 'Escute. Desconfie. Convença.'
-          : 'Aguarde os outros destinos'}
+          : 'Aguarde as ações dos jogadores'}
       </h2>
       <p>
         {isDiscussion

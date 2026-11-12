@@ -5,6 +5,7 @@ import type { RoomSettings } from '@our-werewolf/shared';
 import { HomeScreen } from './HomeScreen';
 import { LobbyScreen } from './LobbyScreen';
 import { makeSnapshot } from '../test/fixtures';
+import { cityForRoom, roomCities } from '../room-city';
 
 describe('entrada na Vila da Lua', () => {
   it('cria uma sala por um formulário rotulado', async () => {
@@ -97,9 +98,17 @@ describe('lobby', () => {
       />,
     );
 
+    const city = cityForRoom(snapshot.public.roomCode);
+    expect(roomCities).toContain(city);
+    expect(
+      screen.getByRole('heading', {
+        name: `A vila se reúne em ${city} durante a...`,
+      }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Compartilhar sala LUAR' }),
     ).toBeInTheDocument();
+    expect(screen.getAllByText('6/20 conectados')).toHaveLength(2);
     expect(
       screen.getByRole('img', {
         name: 'Lobisomem do tema Lenda de Outono',
@@ -121,7 +130,15 @@ describe('lobby', () => {
     expect(
       screen.getByRole('button', { name: 'Remover Bento' }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText(/Permitir “não expulsar”/)).not.toBeChecked();
+    expect(screen.getByText('Iara').closest('li')).toHaveClass(
+      'is-current-user',
+    );
+    expect(screen.getByText('Bento').closest('li')).not.toHaveClass(
+      'is-current-user',
+    );
+    expect(
+      screen.queryByLabelText(/Permitir “não expulsar”/),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByLabelText(/Exibir linha do tempo decisiva/),
     ).toBeChecked();
@@ -224,36 +241,6 @@ describe('lobby', () => {
     });
   });
 
-  it('permite ao anfitrião desativar a opção antes de seis jogadores entrarem', async () => {
-    const user = userEvent.setup();
-    const onSettings = vi.fn().mockResolvedValue(undefined);
-    const snapshot = makeSnapshot();
-    snapshot.public.players = snapshot.public.players.slice(0, 1);
-    snapshot.public.settings.allowNoExile = true;
-    render(
-      <LobbyScreen
-        snapshot={snapshot}
-        network="connected"
-        busy={false}
-        message={null}
-        onReady={vi.fn()}
-        onAvatarChange={vi.fn()}
-        onSettings={onSettings}
-        onStart={vi.fn()}
-        onRemove={vi.fn()}
-        onLeave={vi.fn()}
-        onInstall={vi.fn()}
-      />,
-    );
-
-    await user.click(screen.getByLabelText(/Permitir “não expulsar”/));
-    await waitFor(() =>
-      expect(onSettings).toHaveBeenCalledWith(
-        expect.objectContaining({ allowNoExile: false }),
-      ),
-    );
-  });
-
   it('não oferece configuração nem remoção a um participante comum', () => {
     const snapshot = makeSnapshot({
       host: null,
@@ -280,9 +267,9 @@ describe('lobby', () => {
       screen.queryByRole('button', { name: /Remover/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText('A vila pode encerrar o dia sem eliminação:'),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText('Sim')).toHaveLength(2);
+      screen.queryByText('A vila pode encerrar o dia sem eliminação:'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Sim')).toBeInTheDocument();
     expect(
       within(screen.getByLabelText('Papéis selecionados')).getByText('Vidente'),
     ).toBeVisible();
@@ -308,7 +295,6 @@ describe('lobby', () => {
         {...props}
       />,
     );
-    expect(screen.getByText('Não')).toBeInTheDocument();
     expect(
       screen.getByText('O anfitrião manteve a composição em segredo.'),
     ).toBeVisible();

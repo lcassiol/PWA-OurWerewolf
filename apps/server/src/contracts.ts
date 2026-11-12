@@ -1,4 +1,4 @@
-export { avatarIds, themeIds } from '@our-werewolf/shared';
+export { avatarIds, knowledgeFacts, themeIds } from '@our-werewolf/shared';
 export type {
   ActionChoice,
   Alignment,
@@ -15,6 +15,7 @@ export type {
   GamePhase,
   GameSnapshot,
   HostSnapshot,
+  KnowledgeFact,
   PlayerSummary,
   PrivateSnapshot,
   PublicSnapshot,

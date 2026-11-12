@@ -1,6 +1,22 @@
-import type { PlayerSummary, PrivateSnapshot } from '@our-werewolf/shared';
+import type {
+  KnowledgeFact,
+  PlayerSummary,
+  PrivateSnapshot,
+  RoleId,
+} from '@our-werewolf/shared';
 import { useEffect, useState } from 'react';
 import { roleCatalog } from '../catalog';
+import { roleArtwork } from '../role-artwork';
+
+const knowledgeFactLabels: Record<KnowledgeFact, string> = {
+  werewolf: 'É Lobisomem.',
+  'pack-target': 'É o alvo atual da alcateia.',
+  werewolves: 'Alinhamento: Lobisomens.',
+  village: 'Alinhamento: Cidade.',
+  neutral: 'Alinhamento: Neutro.',
+  lover: 'É seu amor.',
+  'little-girl': 'É a Menina.',
+};
 
 export function SecretRoleCard({
   privateState,
@@ -21,6 +37,7 @@ export function SecretRoleCard({
         <RevealableSecret
           privateState={privateState}
           players={players}
+          roleId={privateState.role!}
           role={role}
         />
       ) : (
@@ -33,10 +50,12 @@ export function SecretRoleCard({
 function RevealableSecret({
   privateState,
   players,
+  roleId,
   role,
 }: {
   privateState: PrivateSnapshot;
   players: PlayerSummary[];
+  roleId: RoleId;
   role: (typeof roleCatalog)[keyof typeof roleCatalog];
 }) {
   const [revealed, setRevealed] = useState(false);
@@ -59,11 +78,37 @@ function RevealableSecret({
   return (
     <div className="secret-card__content">
       <p className="eyebrow">Sua identidade</p>
+      <figure className="role-artwork">
+        <img
+          src={roleArtwork[roleId]}
+          alt={`Ilustração do papel ${role.name}`}
+          width="600"
+          height="780"
+        />
+      </figure>
       <div className="role-sigil" aria-hidden="true">
         {role.mark}
       </div>
       <h2>{role.name}</h2>
-      <p>{privateState.objective ?? role.objective}</p>
+      <div className="role-briefing">
+        <section>
+          <h3>Seu objetivo</h3>
+          <p>{role.objective}</p>
+        </section>
+        <section>
+          <h3>O que fazer</h3>
+          <p>{role.short}</p>
+          <p>{role.targeting}</p>
+        </section>
+        <section>
+          <h3>Regras importantes</h3>
+          <ul>
+            {role.rules.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        </section>
+      </div>
       {privateState.knownPlayers.length > 0 ? (
         <div className="secret-knowledge">
           <h3>O que você sabe</h3>
@@ -75,7 +120,7 @@ function RevealableSecret({
               return (
                 <li key={`${known.playerId}-${known.fact}`}>
                   <strong>{nickname}</strong>
-                  <span>{known.fact}</span>
+                  <span>{knowledgeFactLabels[known.fact]}</span>
                 </li>
               );
             })}
