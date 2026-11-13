@@ -8,6 +8,7 @@ import type {
   GamePhase,
   GameSnapshot,
   KnowledgeFact,
+  RoleArtworkSetId,
   RoleId,
   RoomSettings,
   ThemeId,
@@ -120,6 +121,7 @@ export type ServiceOptions = {
 
 const actionByRole: Partial<Record<RoleId, GameActionType>> = {
   werewolf: 'wolf-vote',
+  'alpha-wolf': 'wolf-vote',
   seer: 'seer-inspect',
   witch: 'witch-heal',
   doctor: 'doctor-protect',
@@ -131,6 +133,7 @@ const actionByRole: Partial<Record<RoleId, GameActionType>> = {
 
 const roleIds = new Set<RoleId>([
   'werewolf',
+  'alpha-wolf',
   'villager',
   'hunter',
   'seer',
@@ -142,6 +145,17 @@ const roleIds = new Set<RoleId>([
   'mayor',
   'little-girl',
 ]);
+
+function isWerewolfRole(role: RoleId): boolean {
+  return role === 'werewolf' || role === 'alpha-wolf';
+}
+
+export function roleArtworkSetForGame(gameId: string): RoleArtworkSetId {
+  const randomNibble = Number.parseInt(gameId.at(-1) ?? '0', 16);
+  return Number.isNaN(randomNibble) || randomNibble % 2 === 0
+    ? 'cartoon'
+    : 'realistic';
+}
 
 function parseSettings(value: unknown): RoomSettings {
   if (!value || typeof value !== 'object') throw new Error('Invalid settings');
@@ -1194,6 +1208,7 @@ export class GameService {
       public: {
         roomCode: room.code,
         themeId: room.theme_id,
+        roleArtworkSetId: game ? roleArtworkSetForGame(game.id) : null,
         status: room.status,
         version: game?.version ?? room.version,
         round: game?.round ?? 0,
@@ -1696,6 +1711,7 @@ export class GameService {
     const result = this.domain.resolveNight({
       players,
       wolfVotes,
+      lockedWolfTargetId: this.wolfTargetForPhase(phase.id),
       witchId: witch?.participant_id ?? null,
       witchResources: witch
         ? toWitchResources(
@@ -1904,7 +1920,7 @@ export class GameService {
         : assignments
             .filter((assignment) =>
               victory.mainWinner === 'werewolves'
-                ? assignment.role === 'werewolf'
+                ? isWerewolfRole(assignment.role)
                 : assignment.alignment === 'village',
             )
             .map((assignment) => assignment.participant_id);
@@ -1981,7 +1997,7 @@ export class GameService {
         .map((assignment) => assignment.participant_id);
     if (phase.stage === 'pack')
       return assignments
-        .filter((assignment) => assignment.role === 'werewolf')
+        .filter((assignment) => isWerewolfRole(assignment.role))
         .map((assignment) => assignment.participant_id);
     if (phase.stage !== 'night-actions') return [];
     return assignments
@@ -2406,9 +2422,9 @@ export class GameService {
     if (game.phase !== 'night' && game.phase !== 'first-night') return null;
     if (
       (phase.stage === 'cupid' && assignment.role !== 'cupid') ||
-      (phase.stage === 'pack' && assignment.role !== 'werewolf') ||
+      (phase.stage === 'pack' && !isWerewolfRole(assignment.role)) ||
       (phase.stage === 'night-actions' &&
-        (assignment.role === 'werewolf' || assignment.role === 'cupid'))
+        (isWerewolfRole(assignment.role) || assignment.role === 'cupid'))
     )
       return null;
     if (assignment.role === 'witch' && assignment.alive === 1) {
@@ -2465,7 +2481,7 @@ export class GameService {
     let targets = alive.map((item) => item.participant_id);
     if (type === 'wolf-vote')
       targets = alive
-        .filter((item) => item.role !== 'werewolf')
+        .filter((item) => !isWerewolfRole(item.role))
         .map((item) => item.participant_id);
     if (type === 'seer-inspect' || type === 'guardian-protect')
       targets = targets.filter((id) => id !== assignment.participant_id);
@@ -2498,12 +2514,16 @@ export class GameService {
         .get(gameId),
     );
     if (!phase) return null;
+    return this.wolfTargetForPhase(phase.id);
+  }
+
+  private wolfTargetForPhase(phaseId: string): string | null {
     const effect = row<{ data_json: string }>(
       this.database
         .prepare(
           "SELECT data_json FROM effects WHERE phase_id = ? AND effect_type = 'wolf-target-locked' ORDER BY sequence DESC LIMIT 1",
         )
-        .get(phase.id),
+        .get(phaseId),
     );
     return effect
       ? ((JSON.parse(effect.data_json) as { targetId: string | null })
@@ -2514,13 +2534,21 @@ export class GameService {
   private knownPlayers(
     gameId: string,
     assignment: AssignmentRow,
-  ): Array<{ playerId: string; fact: KnowledgeFact }> {
-    const known: Array<{ playerId: string; fact: KnowledgeFact }> = [];
-    if (assignment.role === 'werewolf') {
+  ): Array<{
+    playerId: string;
+    fact: KnowledgeFact;
+    sourcePlayerId?: string;
+  }> {
+    const known: Array<{
+      playerId: string;
+      fact: KnowledgeFact;
+      sourcePlayerId?: string;
+    }> = [];
+    if (isWerewolfRole(assignment.role)) {
       const wolves = rows<{ participant_id: string }>(
         this.database
           .prepare(
-            "SELECT participant_id FROM assignments WHERE game_id = ? AND role = 'werewolf' AND alive = 1 AND participant_id != ?",
+            "SELECT participant_id FROM assignments WHERE game_id = ? AND role IN ('werewolf', 'alpha-wolf') AND alive = 1 AND participant_id != ?",
           )
           .all(gameId, assignment.participant_id),
       );
@@ -2530,6 +2558,33 @@ export class GameService {
           fact: 'werewolf' as const,
         })),
       );
+      const packVotes = rows<{
+        participant_id: string;
+        targets_json: string;
+      }>(
+        this.database
+          .prepare(
+            `SELECT actions.participant_id, actions.targets_json
+             FROM actions
+             JOIN phases ON phases.id = actions.phase_id
+             WHERE actions.game_id = ?
+               AND actions.action_type = 'wolf-vote'
+               AND actions.participant_id != ?
+               AND phases.closed_at IS NULL
+               AND phases.stage = 'pack'`,
+          )
+          .all(gameId, assignment.participant_id),
+      );
+      for (const vote of packVotes) {
+        const targetId = (JSON.parse(vote.targets_json) as unknown[])[0];
+        if (typeof targetId === 'string') {
+          known.push({
+            playerId: targetId,
+            fact: 'pack-target',
+            sourcePlayerId: vote.participant_id,
+          });
+        }
+      }
     }
     if (assignment.role === 'witch') {
       const wolfTarget = this.currentWolfTarget(gameId);

@@ -8,7 +8,8 @@ import { themeCatalog } from './themeCatalog';
 
 describe('catálogo de regras', () => {
   it('documenta os onze papéis e as interações críticas em um catálogo', () => {
-    expect(Object.keys(roleCatalog)).toHaveLength(11);
+    expect(Object.keys(roleCatalog)).toHaveLength(12);
+    expect(roleCatalog['alpha-wolf'].rules.join(' ')).toMatch(/Vidente/);
     for (const role of Object.values(roleCatalog)) {
       expect(role.targeting.length).toBeGreaterThan(10);
       expect(role.rules.length).toBeGreaterThan(0);
@@ -49,6 +50,20 @@ describe('catálogo de regras', () => {
     expect(Object.keys(themeCatalog)).toHaveLength(5);
     expect(themeCatalog['spirit-veil'].article).toBe('o');
     expect(themeCatalog['autumn-legend'].article).toBe('a');
+    expect(
+      Object.fromEntries(
+        Object.entries(themeCatalog).map(([id, theme]) => [
+          id,
+          `${theme.article} ${theme.storyTitle}`,
+        ]),
+      ),
+    ).toEqual({
+      'blue-moon': 'a ASSUSTADORA LUA AZUL',
+      'cursed-forest': 'a FLORESTA MALDITA',
+      'blood-moon': 'a LUA DE SANGUE',
+      'spirit-veil': 'o VÉU DOS ESPÍRITOS',
+      'autumn-legend': 'a LENDA DE OUTONO',
+    });
   });
 
   it('expõe as regras completas também para quem não é anfitrião', async () => {

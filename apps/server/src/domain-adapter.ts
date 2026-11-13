@@ -159,7 +159,13 @@ export function createDomainAdapter(
     castWolfVote: (votes, vote, players) =>
       callDomain(() => castWolfVote(votes, vote, players)),
     resolveWolfVotes: (votes, players) =>
-      callDomain(() => resolveWolfVotes(votes, players)),
+      callDomain(() =>
+        resolveWolfVotes(
+          votes,
+          players,
+          () => nextInt(0x1_0000_0000) / 0x1_0000_0000,
+        ),
+      ),
     castDayVote: (votes, vote, players, allowNoExile) =>
       callDomain(() => castDayVote(votes, vote, players, allowNoExile)),
     resolveNight: (input) => callDomain(() => resolveNight(input)),

@@ -80,7 +80,7 @@ describe('abertura offline', () => {
     );
     expect(
       screen.getByRole('heading', {
-        name: /A vila se reúne em .+ durante o\.\.\./,
+        name: /A vila se reúne em .+ durante o\.\.\. VÉU DOS ESPÍRITOS/,
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');

@@ -6,11 +6,13 @@ import type {
 } from '@our-werewolf/shared';
 import {
   DomainRuleError,
+  castWolfVote,
   dayVoteWeight,
   earnsFoolVictory,
   resolveDeathChain,
   resolveWitchAction,
   resolveWolfVotes,
+  isWerewolfRole,
   roleCatalog,
   validateDoctorTarget,
   validateGuardianTarget,
@@ -139,8 +141,8 @@ export function evaluateVictory(
     };
   }
 
-  const livingWerewolves = living.filter(
-    ({ role }) => role === 'werewolf',
+  const livingWerewolves = living.filter(({ role }) =>
+    isWerewolfRole(role),
   ).length;
   if (livingWerewolves === 0) {
     const villageWinnerIds = players
@@ -154,7 +156,7 @@ export function evaluateVictory(
   }
   if (livingWerewolves >= living.length - livingWerewolves) {
     const werewolfWinnerIds = players
-      .filter(({ role }) => role === 'werewolf')
+      .filter(({ role }) => isWerewolfRole(role))
       .map(({ id }) => id);
     return {
       mainWinner: 'werewolves',
@@ -239,6 +241,7 @@ export type NightEffect =
 export type NightResolutionInput = Readonly<{
   players: readonly DomainPlayer[];
   wolfVotes: readonly WolfVote[];
+  lockedWolfTargetId?: string | null;
   witchId: string | null;
   witchResources: WitchResources;
   witchAction: WitchAction | null;
@@ -263,7 +266,29 @@ export type NightResolution = Readonly<{
 }>;
 
 export function resolveNight(input: NightResolutionInput): NightResolution {
-  const wolfResult = resolveWolfVotes(input.wolfVotes, input.players);
+  if (input.lockedWolfTargetId) {
+    const livingWolf = input.players.find(
+      ({ alive, role }) => alive && isWerewolfRole(role),
+    );
+    if (!livingWolf)
+      throw new DomainRuleError(
+        'missing-werewolf',
+        'A locked wolf target requires a living werewolf.',
+      );
+    castWolfVote(
+      [],
+      { voterId: livingWolf.id, targetId: input.lockedWolfTargetId },
+      input.players,
+    );
+  }
+  const wolfResult =
+    input.lockedWolfTargetId === undefined
+      ? resolveWolfVotes(input.wolfVotes, input.players)
+      : {
+          targetId: input.lockedWolfTargetId,
+          tied: false,
+          tally: {},
+        };
   const effects: NightEffect[] = [];
   if (wolfResult.targetId)
     effects.push({ type: 'wolf-target', playerId: wolfResult.targetId });
@@ -430,11 +455,7 @@ export function canAdvancePhase(state: GameState, nowMs: number): boolean {
     state.requiredDecisionPlayerIds.every((id) =>
       state.completedDecisionPlayerIds.includes(id),
     );
-  return (
-    deadlineReached ||
-    allRequiredComplete ||
-    state.phase === 'dawn'
-  );
+  return deadlineReached || allRequiredComplete || state.phase === 'dawn';
 }
 
 function nextPhase(state: GameState): { phase: GamePhase; round: number } {
@@ -548,6 +569,7 @@ export function enterHunterShotPhase(
 
 const roleActions: Readonly<Record<RoleId, readonly GameActionType[]>> = {
   werewolf: ['wolf-vote'],
+  'alpha-wolf': ['wolf-vote'],
   villager: [],
   hunter: ['hunter-shoot'],
   seer: ['seer-inspect'],
@@ -624,7 +646,8 @@ function targetsAreValid(
     context.players.find(({ id }) => id === targetId),
   );
   if (selected.some((target) => !target?.alive)) return false;
-  if (action === 'wolf-vote') return selected[0]?.role !== 'werewolf';
+  if (action === 'wolf-vote')
+    return selected[0] ? !isWerewolfRole(selected[0].role) : false;
   if (action === 'doctor-protect')
     return selected[0]?.id !== context.previousDoctorTargetId;
   if (action === 'cupid-link') return true;

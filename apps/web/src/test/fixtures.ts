@@ -7,6 +7,7 @@ export function makeSnapshot(
     public: {
       roomCode: 'LUAR',
       themeId: 'autumn-legend',
+      roleArtworkSetId: null,
       status: 'lobby',
       version: 3,
       round: 0,

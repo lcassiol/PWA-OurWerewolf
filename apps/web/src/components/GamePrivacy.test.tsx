@@ -6,6 +6,7 @@ import { GameScreen } from './GameScreen';
 import { ParticipantAvatar } from './ParticipantAvatar';
 import { SecretRoleCard } from './SecretRoleCard';
 import { makeSnapshot } from '../test/fixtures';
+import { roleArtwork } from '../role-artwork';
 
 describe('avatares dos participantes', () => {
   it('renderiza os dez modelos disponíveis', () => {
@@ -98,6 +99,25 @@ describe('carta secreta', () => {
     expect(
       screen.getByRole('button', { name: 'Aguardando conexão segura' }),
     ).toBeDisabled();
+  });
+
+  it('usa somente a coleção de ilustrações sorteada para a partida', async () => {
+    const user = userEvent.setup();
+    render(
+      <SecretRoleCard
+        privateState={privateState}
+        players={makeSnapshot().public.players}
+        artworkSetId="cartoon"
+        canReveal
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Revelar minha carta' }),
+    );
+    expect(
+      screen.getByRole('img', { name: 'Ilustração do papel Vidente' }),
+    ).toHaveAttribute('src', roleArtwork.cartoon.seer);
+    expect(roleArtwork.cartoon.seer).not.toBe(roleArtwork.realistic.seer);
   });
 
   it('traduz o conhecimento privado e mostra o apelido público', async () => {
@@ -232,6 +252,14 @@ describe('fases e decisões', () => {
             ...makeSnapshot().private,
             role: 'werewolf',
             alignment: 'werewolves',
+            knownPlayers: [
+              { playerId: 'p4', fact: 'werewolf' },
+              {
+                playerId: 'p2',
+                fact: 'pack-target',
+                sourcePlayerId: 'p4',
+              },
+            ],
             availableAction: {
               type: 'wolf-vote',
               targets: ['p2', 'p3'],
@@ -260,8 +288,15 @@ describe('fases e decisões', () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Cada Lobisomem vota em segredo/),
-    ).toHaveTextContent(/ninguém será atacado/);
+      screen.getByText(/A alcateia acompanha seus votos/),
+    ).toHaveTextContent(/um dos alvos empatados será sorteado/);
+    expect(screen.getByLabelText('Voto de Davi')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Bento').closest('.target-option'),
+    ).toContainElement(screen.getByLabelText('Voto de Davi'));
+    expect(
+      screen.getByLabelText('Cora').closest('.target-option'),
+    ).not.toContainElement(screen.getByLabelText('Voto de Davi'));
     await user.click(screen.getByLabelText('Bento'));
     await user.click(
       screen.getByRole('button', { name: 'Confirmar meu voto' }),

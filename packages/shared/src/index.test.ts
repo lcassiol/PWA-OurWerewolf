@@ -37,6 +37,7 @@ describe('shared contracts', () => {
       public: {
         roomCode: 'WOLF',
         themeId: 'blue-moon',
+        roleArtworkSetId: null,
         status: 'lobby',
         version: 1,
         round: 0,

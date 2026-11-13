@@ -1,14 +1,15 @@
 import type { ThemeId } from '@our-werewolf/shared';
-import autumnLegendImage from './assets/themes/autumn-legend.jpg';
-import bloodMoonImage from './assets/themes/blood-moon.jpg';
-import blueMoonImage from './assets/themes/blue-moon.jpg';
-import cursedForestImage from './assets/themes/cursed-forest.jpg';
-import spiritVeilImage from './assets/themes/spirit-veil.jpg';
+import autumnLegendImage from './assets/themes/autumn-legend.png';
+import bloodMoonImage from './assets/themes/blood-moon.png';
+import blueMoonImage from './assets/themes/blue-moon.png';
+import cursedForestImage from './assets/themes/cursed-forest.png';
+import spiritVeilImage from './assets/themes/spirit-veil.png';
 
 export type ThemeDefinition = {
   id: ThemeId;
   name: string;
   article: 'a' | 'o';
+  storyTitle: string;
   atmosphere: string;
   image: string;
   background: string;
@@ -23,6 +24,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
     id: 'blue-moon',
     name: 'Lua Azul',
     article: 'a',
+    storyTitle: 'ASSUSTADORA LUA AZUL',
     atmosphere: 'Mistério clássico',
     image: blueMoonImage,
     background: '#0B1020',
@@ -35,6 +37,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
     id: 'cursed-forest',
     name: 'Floresta Maldita',
     article: 'a',
+    storyTitle: 'FLORESTA MALDITA',
     atmosphere: 'Fantasia e natureza',
     image: cursedForestImage,
     background: '#0D1915',
@@ -47,6 +50,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
     id: 'blood-moon',
     name: 'Lua de Sangue',
     article: 'a',
+    storyTitle: 'LUA DE SANGUE',
     atmosphere: 'Terror e tensão',
     image: bloodMoonImage,
     background: '#190F16',
@@ -59,6 +63,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
     id: 'spirit-veil',
     name: 'Véu dos Espíritos',
     article: 'o',
+    storyTitle: 'VÉU DOS ESPÍRITOS',
     atmosphere: 'Magia e sobrenatural',
     image: spiritVeilImage,
     background: '#151126',
@@ -71,6 +76,7 @@ export const themeCatalog: Record<ThemeId, ThemeDefinition> = {
     id: 'autumn-legend',
     name: 'Lenda de Outono',
     article: 'a',
+    storyTitle: 'LENDA DE OUTONO',
     atmosphere: 'Folclore e aconchego',
     image: autumnLegendImage,
     background: '#231A16',

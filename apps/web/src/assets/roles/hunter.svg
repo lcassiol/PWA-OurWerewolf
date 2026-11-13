@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 780" role="img" aria-labelledby="title desc">
-  <title id="title">Cacador na floresta</title><desc id="desc">Um cacador segue rastros entre pinheiros sob o luar.</desc>
-  <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#0b1520"/><stop offset="1" stop-color="#425044"/></linearGradient></defs><rect width="600" height="780" fill="url(#sky)"/><circle cx="124" cy="146" r="83" fill="#d9c798" opacity=".72"/>
-  <g fill="#101914"><path d="M0 493l95-216 87 216zM86 536l120-298 126 298zM390 505l95-245 115 245z"/></g><path d="M0 594q143-59 283-5t317-23v214H0Z" fill="#151811"/>
-  <path d="M221 700q8-178 55-260l-15-79 45-69 49 70-7 80q48 95 57 258Z" fill="#3a3628" stroke="#a47d4e" stroke-width="5"/><path d="M269 364q36-49 79 0l-8 92q-31 28-63 0Z" fill="#8d6747"/><path d="M253 363q15-96 54-107 52 21 59 107-58-30-113 0Z" fill="#24271e"/><path d="M283 395h53" stroke="#1a1712" stroke-width="10"/>
-  <path d="M154 542 455 331" stroke="#442d20" stroke-width="17"/><path d="m429 314 40 55" stroke="#bd9a64" stroke-width="7"/><path d="m157 530-36 88 83-46" fill="#5a3924" stroke="#b28b58" stroke-width="5"/><path d="M111 694q38-25 73 0m246 0q38-25 73 0" stroke="#a47d4e" stroke-width="5" fill="none"/><g fill="#75624a"><path d="m78 675 28-14 18 13-24 13zM129 715l27-13 20 14-25 12z"/></g><rect x="14" y="14" width="572" height="752" rx="22" fill="none" stroke="#c99d5c" stroke-width="3" opacity=".62"/>
-</svg>

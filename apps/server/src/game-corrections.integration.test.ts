@@ -4,10 +4,21 @@ import { DatabaseSync } from 'node:sqlite';
 import { createDomainAdapter, type DomainAdapter } from './domain-adapter.js';
 import type { GameActionType, GameSnapshot, RoleId } from './contracts.js';
 import { migrateUp } from './db/migrate.js';
-import { GameService, type Identity } from './game-service.js';
+import {
+  GameService,
+  roleArtworkSetForGame,
+  type Identity,
+} from './game-service.js';
 import { createLogger } from './logger.js';
 
 type Member = { identity: Identity; credential: string };
+
+void test('role artwork collection is stable and balanced from the random game id', () => {
+  assert.equal(roleArtworkSetForGame('game-0'), 'cartoon');
+  assert.equal(roleArtworkSetForGame('game-2'), 'cartoon');
+  assert.equal(roleArtworkSetForGame('game-1'), 'realistic');
+  assert.equal(roleArtworkSetForGame('game-f'), 'realistic');
+});
 
 function fixture(
   specialRoles: RoleId[],
@@ -220,6 +231,74 @@ void test('pack target locks only after every living wolf submits', () => {
       'witch-heal',
     );
     assert.equal(effectCount(database, 'wolf-target-locked'), 1);
+  } finally {
+    database.close();
+  }
+});
+
+void test('alpha wolf shares pack votes and appears as village to the seer', () => {
+  const { database, service, members } = fixture(['alpha-wolf', 'seer'], 9);
+  try {
+    const firstWolf = byRole(service, members, 'werewolf', 0);
+    const secondWolf = byRole(service, members, 'werewolf', 1);
+    const alphaWolf = byRole(service, members, 'alpha-wolf');
+    const seer = byRole(service, members, 'seer');
+    const targets = members.filter(
+      (member) =>
+        ![firstWolf, secondWolf, alphaWolf].includes(member) && member !== seer,
+    );
+
+    submit(service, firstWolf, 'wolf-vote', [
+      targets[0]!.identity.participantId,
+    ]);
+    assert.ok(
+      service
+        .project(alphaWolf.identity)
+        .private.knownPlayers.some(
+          (known) =>
+            known.fact === 'pack-target' &&
+            known.playerId === targets[0]!.identity.participantId &&
+            known.sourcePlayerId === firstWolf.identity.participantId,
+        ),
+    );
+
+    submit(service, alphaWolf, 'wolf-vote', [
+      targets[1]!.identity.participantId,
+    ]);
+    assert.ok(
+      service
+        .project(firstWolf.identity)
+        .private.knownPlayers.some(
+          (known) =>
+            known.fact === 'pack-target' &&
+            known.playerId === targets[1]!.identity.participantId &&
+            known.sourcePlayerId === alphaWolf.identity.participantId,
+        ),
+    );
+
+    submit(service, secondWolf, 'wolf-vote', []);
+    submit(service, seer, 'seer-inspect', [alphaWolf.identity.participantId]);
+    assert.equal(
+      service
+        .project(seer.identity)
+        .public.players.filter(
+          (player) =>
+            targets
+              .slice(0, 2)
+              .some((target) => target.identity.participantId === player.id) &&
+            !player.alive,
+        ).length,
+      1,
+    );
+    assert.ok(
+      service
+        .project(seer.identity)
+        .private.knownPlayers.some(
+          (known) =>
+            known.playerId === alphaWolf.identity.participantId &&
+            known.fact === 'village',
+        ),
+    );
   } finally {
     database.close();
   }

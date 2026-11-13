@@ -42,6 +42,16 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
       'Iguale ou supere em número todos os outros jogadores sobreviventes.',
     actions: ['wolf-vote'],
   },
+  'alpha-wolf': {
+    id: 'alpha-wolf',
+    name: 'Lobo Alfa',
+    alignment: 'werewolves',
+    summary:
+      'Age com a alcateia à noite, mas parece pertencer à Cidade quando é investigado pela Vidente.',
+    objective:
+      'Iguale ou supere em número todos os outros jogadores sobreviventes.',
+    actions: ['wolf-vote'],
+  },
   villager: {
     id: 'villager',
     name: 'Aldeão',
@@ -136,6 +146,7 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
 };
 
 export const specialRoleIds = [
+  'alpha-wolf',
   'hunter',
   'seer',
   'witch',
@@ -148,6 +159,10 @@ export const specialRoleIds = [
 ] as const satisfies readonly RoleId[];
 
 const specialRoleSet = new Set<RoleId>(specialRoleIds);
+
+export function isWerewolfRole(role: RoleId): boolean {
+  return roleCatalog[role].alignment === 'werewolves';
+}
 
 export type DomainPlayer = Readonly<{
   id: string;
@@ -261,14 +276,14 @@ export function knownLivingWerewolves(
 ): string[] {
   const werewolf = playerById(players, werewolfId);
   assertRule(
-    werewolf.alive && werewolf.role === 'werewolf',
+    werewolf.alive && isWerewolfRole(werewolf.role),
     'invalid-werewolf',
     'Only a living werewolf knows the living pack.',
   );
   return players
     .filter(
       ({ id, role, alive }) =>
-        id !== werewolfId && role === 'werewolf' && alive,
+        id !== werewolfId && isWerewolfRole(role) && alive,
     )
     .map(({ id }) => id);
 }
@@ -281,12 +296,12 @@ export function castWolfVote(
   const voter = playerById(players, vote.voterId);
   const target = playerById(players, vote.targetId);
   assertRule(
-    voter.alive && voter.role === 'werewolf',
+    voter.alive && isWerewolfRole(voter.role),
     'invalid-wolf-voter',
     'Only a living werewolf can vote.',
   );
   assertRule(
-    target.alive && target.role !== 'werewolf',
+    target.alive && !isWerewolfRole(target.role),
     'invalid-wolf-target',
     'The pack must target a living non-werewolf.',
   );
@@ -302,6 +317,7 @@ export type WolfVoteResult = Readonly<{
 export function resolveWolfVotes(
   votes: readonly WolfVote[],
   players: readonly DomainPlayer[],
+  random: RandomSource = Math.random,
 ): WolfVoteResult {
   let accepted: WolfVote[] = [];
   for (const vote of votes) {
@@ -320,7 +336,14 @@ export function resolveWolfVotes(
     (targetId) => tally[targetId] === highest,
   );
   return {
-    targetId: leaders.length === 1 ? (leaders[0] as string) : null,
+    targetId:
+      leaders.length === 0
+        ? null
+        : leaders.length === 1
+          ? (leaders[0] as string)
+          : (leaders[
+              Math.floor(drawRandom(random) * leaders.length)
+            ] as string),
     tied: leaders.length > 1,
     tally,
   };
@@ -343,7 +366,9 @@ export function inspectAlignment(
     'invalid-seer-target',
     'The seer must inspect another living player.',
   );
-  return roleCatalog[target.role].alignment;
+  return target.role === 'alpha-wolf'
+    ? 'village'
+    : roleCatalog[target.role].alignment;
 }
 
 export function dayVoteWeight(player: DomainPlayer): number {
@@ -604,7 +629,7 @@ export function resolveLittleGirlSpy(
     'Only the living little girl can spy.',
   );
   const livingWerewolves = players.filter(
-    ({ alive, role }) => alive && role === 'werewolf',
+    ({ alive, role }) => alive && isWerewolfRole(role),
   );
   if (livingWerewolves.length === 0) {
     return {

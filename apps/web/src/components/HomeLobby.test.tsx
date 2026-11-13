@@ -102,7 +102,7 @@ describe('lobby', () => {
     expect(roomCities).toContain(city);
     expect(
       screen.getByRole('heading', {
-        name: `A vila se reúne em ${city} durante a...`,
+        name: `A vila se reúne em ${city} durante a... LENDA DE OUTONO`,
       }),
     ).toBeInTheDocument();
     expect(
@@ -158,7 +158,11 @@ describe('lobby', () => {
     expect(onAvatarChange).toHaveBeenCalledWith('fox');
 
     await user.selectOptions(screen.getByLabelText('Discussão diurna'), '7');
-    await user.click(screen.getByLabelText(/Vidente/));
+    const seerToggle = screen
+      .getAllByLabelText(/Vidente/)
+      .find((control) => (control as HTMLInputElement).checked);
+    expect(seerToggle).toBeDefined();
+    await user.click(seerToggle!);
     await waitFor(() =>
       expect(onSettings).toHaveBeenLastCalledWith(
         expect.objectContaining({ discussionMinutes: 7, specialRoles: [] }),

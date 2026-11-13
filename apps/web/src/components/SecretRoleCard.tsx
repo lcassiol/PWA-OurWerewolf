@@ -2,6 +2,7 @@ import type {
   KnowledgeFact,
   PlayerSummary,
   PrivateSnapshot,
+  RoleArtworkSetId,
   RoleId,
 } from '@our-werewolf/shared';
 import { useEffect, useState } from 'react';
@@ -21,10 +22,12 @@ const knowledgeFactLabels: Record<KnowledgeFact, string> = {
 export function SecretRoleCard({
   privateState,
   players,
+  artworkSetId = 'realistic',
   canReveal,
 }: {
   privateState: PrivateSnapshot;
   players: PlayerSummary[];
+  artworkSetId?: RoleArtworkSetId;
   canReveal: boolean;
 }) {
   const role = privateState.role ? roleCatalog[privateState.role] : null;
@@ -37,6 +40,7 @@ export function SecretRoleCard({
         <RevealableSecret
           privateState={privateState}
           players={players}
+          artworkSetId={artworkSetId}
           roleId={privateState.role!}
           role={role}
         />
@@ -50,11 +54,13 @@ export function SecretRoleCard({
 function RevealableSecret({
   privateState,
   players,
+  artworkSetId,
   roleId,
   role,
 }: {
   privateState: PrivateSnapshot;
   players: PlayerSummary[];
+  artworkSetId: RoleArtworkSetId;
   roleId: RoleId;
   role: (typeof roleCatalog)[keyof typeof roleCatalog];
 }) {
@@ -80,7 +86,7 @@ function RevealableSecret({
       <p className="eyebrow">Sua identidade</p>
       <figure className="role-artwork">
         <img
-          src={roleArtwork[roleId]}
+          src={roleArtwork[artworkSetId][roleId]}
           alt={`Ilustração do papel ${role.name}`}
           width="600"
           height="780"
@@ -118,9 +124,15 @@ function RevealableSecret({
                 players.find((player) => player.id === known.playerId)
                   ?.nickname ?? 'Participante desconhecido';
               return (
-                <li key={`${known.playerId}-${known.fact}`}>
+                <li
+                  key={`${known.playerId}-${known.fact}-${known.sourcePlayerId ?? ''}`}
+                >
                   <strong>{nickname}</strong>
-                  <span>{knowledgeFactLabels[known.fact]}</span>
+                  <span>
+                    {known.fact === 'pack-target' && known.sourcePlayerId
+                      ? `É o voto atual de ${players.find((player) => player.id === known.sourcePlayerId)?.nickname ?? 'outro Lobo'}.`
+                      : knowledgeFactLabels[known.fact]}
+                  </span>
                 </li>
               );
             })}

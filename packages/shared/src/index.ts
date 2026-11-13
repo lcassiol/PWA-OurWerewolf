@@ -23,8 +23,12 @@ export const themeIds = [
 
 export type ThemeId = (typeof themeIds)[number];
 
+export const roleArtworkSetIds = ['cartoon', 'realistic'] as const;
+export type RoleArtworkSetId = (typeof roleArtworkSetIds)[number];
+
 export const roleIds = [
   'werewolf',
+  'alpha-wolf',
   'villager',
   'hunter',
   'seer',
@@ -72,6 +76,7 @@ export type RoomSettings = {
 export type PublicSnapshot = {
   roomCode: string;
   themeId: ThemeId;
+  roleArtworkSetId: RoleArtworkSetId | null;
   status: RoomStatus;
   version: number;
   round: number;
@@ -120,7 +125,11 @@ export type PrivateSnapshot = {
   role: RoleId | null;
   alignment: Alignment | null;
   objective: string | null;
-  knownPlayers: Array<{ playerId: string; fact: KnowledgeFact }>;
+  knownPlayers: Array<{
+    playerId: string;
+    fact: KnowledgeFact;
+    sourcePlayerId?: string;
+  }>;
   resources: Record<string, boolean | number | string>;
   availableAction: AvailableAction | null;
   readyForVote: boolean;

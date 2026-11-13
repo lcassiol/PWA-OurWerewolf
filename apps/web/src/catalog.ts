@@ -24,11 +24,26 @@ export const gameRuleCatalog: {
       targeting:
         'Em cada noite, escolha uma pessoa viva que não pertença à alcateia. Você pode trocar seu voto enquanto a fase estiver aberta.',
       rules: [
-        'Os Lobisomens vivos conhecem uns aos outros e votam em segredo.',
-        'Somente uma maioria única produz ataque; empate ou ausência de votos não ataca ninguém.',
+        'Os membros vivos da alcateia conhecem uns aos outros e veem seus votos durante a noite.',
+        'O alvo mais votado é atacado; em empate, um dos alvos empatados é sorteado.',
         'A alcateia vence quando seus sobreviventes igualam ou superam todos os demais, salvo uma vitória especial anterior.',
       ],
       mark: 'L',
+    },
+    'alpha-wolf': {
+      name: 'Lobo Alfa',
+      short:
+        'Você lidera a alcateia e vota com os outros Lobos, mas sua natureza fica oculta da investigação da Vidente.',
+      objective:
+        'Sobreviva com a alcateia até que seus membros vivos igualem ou superem todos os demais sobreviventes.',
+      targeting:
+        'Escolha uma pessoa viva fora da alcateia. Durante a noite, você e os demais Lobos conseguem acompanhar os votos uns dos outros.',
+      rules: [
+        'Pertence à alcateia, conhece seus aliados e participa normalmente do ataque noturno.',
+        'Quando investigado pela Vidente, aparece como integrante da Cidade.',
+        'Em caso de empate na votação da alcateia, um dos alvos empatados é sorteado.',
+      ],
+      mark: 'α',
     },
     villager: {
       name: 'Aldeão',
@@ -192,6 +207,7 @@ export const gameRuleCatalog: {
 export const roleCatalog = gameRuleCatalog.roles;
 
 export const specialRoleIds: RoleId[] = [
+  'alpha-wolf',
   'hunter',
   'seer',
   'witch',
@@ -262,7 +278,7 @@ export const actionLabels: Record<
     title: 'Quem os Lobisomens devem matar?',
     submit: 'Confirmar meu voto',
     instruction:
-      'Cada Lobisomem vota em segredo. A alcateia atacará quem receber sozinho o maior número de votos; em caso de empate ou sem votos, ninguém será atacado.',
+      'A alcateia acompanha seus votos e atacará quem receber mais votos. Em caso de empate, um dos alvos empatados será sorteado.',
   },
   'seer-inspect': {
     title: 'Quem deseja inspecionar?',

@@ -19,6 +19,7 @@ export type {
   PlayerSummary,
   PrivateSnapshot,
   PublicSnapshot,
+  RoleArtworkSetId,
   RoleId,
   RoomSettings,
   RoomStatus,

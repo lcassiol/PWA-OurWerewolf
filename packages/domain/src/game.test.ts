@@ -194,6 +194,19 @@ describe('ordered victory evaluation', () => {
     });
   });
 
+  it('counts the alpha wolf as a pack member for parity and victory', () => {
+    expect(
+      evaluateVictory(
+        [player('alpha', 'alpha-wolf'), player('villager', 'villager')],
+        null,
+      ),
+    ).toEqual({
+      mainWinner: 'werewolves',
+      winnerIds: ['alpha'],
+      personalWinnerIds: [],
+    });
+  });
+
   it('does not let a personal winner end the main game', () => {
     expect(
       evaluateVictory(

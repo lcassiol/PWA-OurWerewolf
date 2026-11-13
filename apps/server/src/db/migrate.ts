@@ -6,6 +6,7 @@ import { hiddenRolesMigration } from './migrations/003_hidden_roles.js';
 import { finalTimelineMigration } from './migrations/004_final_timeline.js';
 import { participantAvatarsMigration } from './migrations/005_participant_avatars.js';
 import { roomThemesMigration } from './migrations/006_room_themes.js';
+import { alphaWolfMigration } from './migrations/007_alpha_wolf.js';
 import { openDatabase } from './open.js';
 
 const migrations = [
@@ -15,6 +16,7 @@ const migrations = [
   finalTimelineMigration,
   participantAvatarsMigration,
   roomThemesMigration,
+  alphaWolfMigration,
 ] as const;
 
 type Migration = (typeof migrations)[number];

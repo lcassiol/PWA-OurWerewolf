@@ -83,7 +83,7 @@ export function LobbyScreen(props: LobbyScreenProps) {
     ) ?? [];
   const [shareMessage, setShareMessage] = useState('');
   const city = cityForRoom(publicState.roomCode);
-  const themeArticle = themeCatalog[publicState.themeId].article;
+  const theme = themeCatalog[publicState.themeId];
 
   const share = async () => {
     const text = `Entre na minha partida de Vila da Lua com o código ${publicState.roomCode}`;
@@ -134,7 +134,10 @@ export function LobbyScreen(props: LobbyScreenProps) {
           {shareMessage}
         </p>
         <h1 id="lobby-title">
-          A vila se reúne em {city} durante {themeArticle}...
+          <span className="room-banner__lead">
+            A vila se reúne em {city} durante {theme.article}...
+          </span>{' '}
+          <span className="room-banner__theme">{theme.storyTitle}</span>
         </h1>
         <p className="room-occupancy room-occupancy--mobile">
           {connectedCount}/20 conectados

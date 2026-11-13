@@ -113,6 +113,7 @@ export function GameScreen({
         <SecretRoleCard
           privateState={snapshot.private}
           players={publicState.players}
+          artworkSetId={publicState.roleArtworkSetId ?? 'realistic'}
           canReveal={network === 'connected' && privateFresh}
         />
 
@@ -138,6 +139,7 @@ export function GameScreen({
               key={`${publicState.phase}-${snapshot.private.availableAction.type}`}
               action={snapshot.private.availableAction}
               players={publicState.players}
+              knownPlayers={snapshot.private.knownPlayers}
               expectedVersion={publicState.version}
               expectedPhase={currentPhase}
               disabled={busy || network !== 'connected'}
@@ -175,6 +177,7 @@ export function GameScreen({
 function ActionPanel({
   action,
   players,
+  knownPlayers,
   expectedVersion,
   expectedPhase,
   disabled,
@@ -182,6 +185,7 @@ function ActionPanel({
 }: {
   action: AvailableAction;
   players: PlayerSummary[];
+  knownPlayers: GameSnapshot['private']['knownPlayers'];
   expectedVersion: number;
   expectedPhase: GameCommand['expectedPhase'];
   disabled: boolean;
@@ -200,6 +204,12 @@ function ActionPanel({
     selectedAction.targets.includes(player.id),
   );
   const isDayVote = selectedAction.type === 'day-vote';
+  const packVotes =
+    selectedAction.type === 'wolf-vote'
+      ? knownPlayers.filter(
+          (known) => known.fact === 'pack-target' && known.sourcePlayerId,
+        )
+      : [];
   const hasValidTargets =
     selected.length >= selectedAction.minTargets &&
     selected.length <= selectedAction.maxTargets;
@@ -270,33 +280,55 @@ function ActionPanel({
       </p>
       <fieldset className="target-list">
         <legend className="visually-hidden">Alvos disponíveis</legend>
-        {validPlayers.map((player) => (
-          <label
-            className={
-              selected.includes(player.id)
-                ? 'target-option is-selected'
-                : 'target-option'
-            }
-            key={player.id}
-          >
-            <input
-              type={selectedAction.maxTargets === 1 ? 'radio' : 'checkbox'}
-              name="target"
-              value={player.id}
-              aria-label={player.nickname}
-              checked={selected.includes(player.id)}
-              onChange={() => choose(player.id)}
-            />
-            <ParticipantAvatar
-              avatarId={player.avatarId}
-              className="target-avatar"
-            />
-            <span>{player.nickname}</span>
-            <span className="target-check" aria-hidden="true">
-              ✓
-            </span>
-          </label>
-        ))}
+        {validPlayers.map((player) => {
+          const votesForPlayer = packVotes.filter(
+            (vote) => vote.playerId === player.id,
+          );
+          return (
+            <label
+              className={
+                selected.includes(player.id)
+                  ? 'target-option is-selected'
+                  : 'target-option'
+              }
+              key={player.id}
+            >
+              <input
+                type={selectedAction.maxTargets === 1 ? 'radio' : 'checkbox'}
+                name="target"
+                value={player.id}
+                aria-label={player.nickname}
+                checked={selected.includes(player.id)}
+                onChange={() => choose(player.id)}
+              />
+              <ParticipantAvatar
+                avatarId={player.avatarId}
+                className="target-avatar"
+              />
+              <span className="target-label">
+                <span>{player.nickname}</span>
+                {votesForPlayer.map((vote) => {
+                  const voter = players.find(
+                    (candidate) => candidate.id === vote.sourcePlayerId,
+                  );
+                  return (
+                    <span
+                      className="pack-vote-mark"
+                      key={vote.sourcePlayerId}
+                      aria-label={`Voto de ${voter?.nickname ?? 'outro Lobo'}`}
+                    >
+                      <span aria-hidden="true">L</span>
+                      {voter?.nickname ?? 'Outro Lobo'}
+                    </span>
+                  );
+                })}
+              </span>
+              <span className="target-check" aria-hidden="true">
+                ✓
+              </span>
+            </label>
+          );
+        })}
         {selectedAction.allowAbstain ? (
           <label
             className={

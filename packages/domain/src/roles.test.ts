@@ -66,6 +66,13 @@ describe('role composition and assignment', () => {
     );
   });
 
+  it('adds the optional alpha wolf to the standard pack', () => {
+    const composition = buildRoleComposition(9, ['alpha-wolf']);
+    expect(composition.filter((role) => role === 'werewolf')).toHaveLength(2);
+    expect(composition.filter((role) => role === 'alpha-wolf')).toHaveLength(1);
+    expect(composition.filter((role) => role === 'villager')).toHaveLength(6);
+  });
+
   it('rejects duplicate, fixed, and excessive special roles', () => {
     expect(() => buildRoleComposition(6, ['seer', 'seer'])).toThrowError(
       'only appear once',
@@ -78,9 +85,10 @@ describe('role composition and assignment', () => {
     ).toThrowError('leave room for a villager');
   });
 
-  it('catalogs all eleven roles with help and tested alignment metadata', () => {
+  it('catalogs all twelve roles with help and tested alignment metadata', () => {
     expect(Object.keys(roleCatalog)).toEqual([
       'werewolf',
+      'alpha-wolf',
       'villager',
       'hunter',
       'seer',
@@ -129,13 +137,13 @@ describe('role composition and assignment', () => {
 describe('werewolf, seer, and mayor policies', () => {
   const players = [
     player('w1', 'werewolf'),
-    player('w2', 'werewolf'),
+    player('w2', 'alpha-wolf'),
     player('seer', 'seer'),
     player('fool', 'fool'),
     player('mayor', 'mayor'),
   ];
 
-  it('selects only a unique pack leader and treats ties or no votes as no attack', () => {
+  it('selects a unique leader and randomly breaks a tied pack vote', () => {
     expect(
       resolveWolfVotes(
         [
@@ -152,8 +160,9 @@ describe('werewolf, seer, and mayor policies', () => {
           { voterId: 'w2', targetId: 'fool' },
         ],
         players,
+        () => 0.99,
       ),
-    ).toMatchObject({ targetId: null, tied: true });
+    ).toMatchObject({ targetId: 'fool', tied: true });
     expect(resolveWolfVotes([], players)).toMatchObject({
       targetId: null,
       tied: false,
@@ -191,6 +200,7 @@ describe('werewolf, seer, and mayor policies', () => {
 
   it('reveals alignment rather than exact role and applies a secret mayor weight', () => {
     expect(inspectAlignment('seer', 'w1', players)).toBe('werewolves');
+    expect(inspectAlignment('seer', 'w2', players)).toBe('village');
     expect(inspectAlignment('seer', 'fool', players)).toBe('neutral');
     expect(inspectAlignment('seer', 'mayor', players)).toBe('village');
     expect(dayVoteWeight(player('mayor', 'mayor'))).toBe(2);
