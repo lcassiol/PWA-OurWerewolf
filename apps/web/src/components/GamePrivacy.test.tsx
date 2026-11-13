@@ -172,6 +172,39 @@ describe('fases e decisões', () => {
     host: null,
   });
 
+  it('exibe de forma conclusiva um amanhecer sem mortes', () => {
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...makeSnapshot().public,
+            status: 'playing',
+            phase: 'dawn',
+            round: 1,
+            announcements: [
+              'Oxente, ninguém morreu! A alcateia se avexou e errou o caminho.',
+            ],
+          },
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={vi.fn()}
+        onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Oxente, ninguém morreu!/)).toBeInTheDocument();
+    expect(
+      screen.queryByText('O servidor está preparando o anúncio.'),
+    ).not.toBeInTheDocument();
+  });
+
   it('aguarda o OK de todos no resumo do dia, inclusive de eliminados', async () => {
     const user = userEvent.setup();
     const onAcknowledge = vi.fn().mockResolvedValue(undefined);

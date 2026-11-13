@@ -313,7 +313,40 @@ void test('a timed-out empty night stage chains directly to dawn', () => {
       null,
     );
     expire(service, database);
-    assert.equal(service.project(host.identity).public.phase, 'dawn');
+    const dawn = service.project(host.identity);
+    assert.equal(dawn.public.phase, 'dawn');
+    assert.equal(dawn.public.announcements.length, 1);
+    assert.equal(
+      service.project(host.identity).public.announcements[0],
+      dawn.public.announcements[0],
+    );
+  } finally {
+    database.close();
+  }
+});
+
+void test('an unprotected wolf target is dead and announced at dawn', () => {
+  const { database, service, members } = fixture([]);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const victim = byRole(service, members, 'villager');
+    const dawn = submit(service, wolf, 'wolf-vote', [
+      victim.identity.participantId,
+    ]);
+    const victimName = dawn.public.players.find(
+      (player) => player.id === victim.identity.participantId,
+    )?.nickname;
+
+    assert.equal(dawn.public.phase, 'dawn');
+    assert.ok(victimName);
+    assert.equal(
+      dawn.public.players.find(
+        (player) => player.id === victim.identity.participantId,
+      )?.alive,
+      false,
+    );
+    assert.equal(dawn.public.announcements.length, 1);
+    assert.match(dawn.public.announcements[0]!, new RegExp(victimName));
   } finally {
     database.close();
   }
@@ -413,6 +446,12 @@ void test('Hunter resumes dawn after a night death and night after a day death',
       'hunter-shot',
     );
     expire(day.service, day.database);
+    assert.equal(
+      day.service.project(hunter.identity).public.phase,
+      'day-resolution',
+    );
+    for (const member of day.members)
+      day.service.acknowledgeDayResolution(member.identity, 1);
     assert.equal(day.service.project(hunter.identity).public.phase, 'night');
   } finally {
     day.database.close();
@@ -448,11 +487,22 @@ void test('an exile is announced only once in day-resolution', () => {
   const { database, service, members } = fixture([]);
   try {
     const wolf = byRole(service, members, 'werewolf');
-    const target = byRole(service, members, 'villager');
-    submit(service, wolf, 'wolf-vote', []);
+    const nightVictim = byRole(service, members, 'villager', 0);
+    const target = byRole(service, members, 'villager', 1);
+    const dawn = submit(service, wolf, 'wolf-vote', [
+      nightVictim.identity.participantId,
+    ]);
+    const nightVictimName = dawn.public.players.find(
+      (player) => player.id === nightVictim.identity.participantId,
+    )?.nickname;
+    assert.ok(nightVictimName);
+    const nightAnnouncement = dawn.public.announcements[0];
+    assert.ok(nightAnnouncement);
+    assert.ok(nightAnnouncement.includes(nightVictimName));
     expire(service, database);
     expire(service, database);
     for (const member of members) {
+      if (member === nightVictim) continue;
       submit(
         service,
         member,
@@ -472,6 +522,7 @@ void test('an exile is announced only once in day-resolution', () => {
     assert.ok(
       !resolution.public.announcements.includes(`${targetName} foi eliminado.`),
     );
+    assert.ok(!resolution.public.announcements.includes(nightAnnouncement));
   } finally {
     database.close();
   }

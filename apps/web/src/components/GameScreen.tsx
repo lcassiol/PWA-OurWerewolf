@@ -367,7 +367,9 @@ function ActionPanel({
       </button>
       {submitted ? (
         <p className="action-confirmed" role="status">
-          Decisão confirmada. Você ainda pode substituí-la até o fim.
+          {selectedAction.type === 'wolf-vote'
+            ? 'Voto registrado. A vítima será definida após os votos da alcateia e as demais ações da noite.'
+            : 'Decisão confirmada. Você ainda pode substituí-la até o fim.'}
         </p>
       ) : null}
     </form>
@@ -408,7 +410,7 @@ function AnnouncementPanel({
       <h2 id="action-title">
         {announcements.length > 0
           ? 'O que aconteceu'
-          : 'A névoa ainda não abriu'}
+          : 'Nenhum anúncio disponível'}
       </h2>
       {announcements.length > 0 ? (
         <ul>
@@ -417,7 +419,7 @@ function AnnouncementPanel({
           ))}
         </ul>
       ) : (
-        <p>O servidor está preparando o anúncio.</p>
+        <p>Não há acontecimentos públicos para este resumo.</p>
       )}
       {snapshot.public.phase === 'day-resolution' && acknowledgement ? (
         <div className="day-resolution-confirmation">

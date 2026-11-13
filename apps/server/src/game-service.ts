@@ -25,6 +25,10 @@ import {
   type VictoryResult,
   type WitchAction,
 } from './domain-adapter.js';
+import {
+  dawnDeathAnnouncement,
+  dawnNoDeathAnnouncement,
+} from './dawn-announcements.js';
 import { assert, HttpError } from './errors.js';
 import type { Logger } from './logger.js';
 
@@ -254,7 +258,7 @@ function phaseDurationMs(
   discussionMinutes: number,
 ): number | null {
   if (phase === 'discussion') return discussionMinutes * 60_000;
-  if (phase === 'dawn') return 10_000;
+  if (phase === 'dawn') return 30_000;
   if (phase === 'day-resolution') return null;
   if (phase === 'hunter-shot') return 30_000;
   if (phase === 'finished') return null;
@@ -1157,7 +1161,7 @@ export class GameService {
       ? { ...settings, specialRoles: [] }
       : settings;
     const announcements = game
-      ? this.publicAnnouncements(game.id, participants)
+      ? this.publicAnnouncements(game, participants)
       : [];
     const knownPlayers =
       game && assignment ? this.knownPlayers(game.id, assignment) : [];
@@ -2621,18 +2625,61 @@ export class GameService {
   }
 
   private publicAnnouncements(
-    gameId: string,
+    game: GameRow,
     participants: ParticipantRow[],
   ): string[] {
     const names = new Map(
       participants.map((participant) => [participant.id, participant.nickname]),
     );
-    const effects = rows<{ effect_type: string; data_json: string }>(
-      this.database
-        .prepare(
-          "SELECT effect_type, data_json FROM effects WHERE game_id = ? AND visibility = 'public' ORDER BY sequence",
+    const summarySourceKind =
+      game.phase === 'dawn'
+        ? ['first-night', 'night']
+        : game.phase === 'day-resolution'
+          ? ['voting']
+          : null;
+    const currentPhase = summarySourceKind
+      ? row<{ sequence: number }>(
+          this.database
+            .prepare(
+              'SELECT sequence FROM phases WHERE game_id = ? AND closed_at IS NULL',
+            )
+            .get(game.id),
         )
-        .all(gameId),
+      : undefined;
+    const sourcePhase =
+      currentPhase && summarySourceKind
+        ? row<{ sequence: number }>(
+            this.database
+              .prepare(
+                `SELECT sequence FROM phases
+                 WHERE game_id = ? AND closed_at IS NOT NULL AND sequence < ?
+                   AND kind IN (${summarySourceKind.map(() => '?').join(', ')})
+                 ORDER BY sequence DESC LIMIT 1`,
+              )
+              .get(game.id, currentPhase.sequence, ...summarySourceKind),
+          )
+        : undefined;
+    const effects = rows<{
+      sequence: number;
+      effect_type: string;
+      data_json: string;
+    }>(
+      sourcePhase && currentPhase
+        ? this.database
+            .prepare(
+              `SELECT effects.sequence, effects.effect_type, effects.data_json
+               FROM effects
+               JOIN phases ON phases.id = effects.phase_id
+               WHERE effects.game_id = ? AND effects.visibility = 'public'
+                 AND phases.sequence >= ? AND phases.sequence < ?
+               ORDER BY effects.sequence`,
+            )
+            .all(game.id, sourcePhase.sequence, currentPhase.sequence)
+        : this.database
+            .prepare(
+              "SELECT sequence, effect_type, data_json FROM effects WHERE game_id = ? AND visibility = 'public' ORDER BY sequence",
+            )
+            .all(game.id),
     );
     const noExileReasons: Record<string, string> = {
       'no-exile': 'opção sem expulsão',
@@ -2644,7 +2691,7 @@ export class GameService {
       werewolves: 'dos Lobisomens',
       lovers: 'dos Amantes',
     };
-    return effects.flatMap((effect) => {
+    const announcements = effects.flatMap((effect) => {
       const data = JSON.parse(effect.data_json) as {
         participantId?: string;
         cause?: string;
@@ -2656,7 +2703,12 @@ export class GameService {
         return data.cause === 'exile'
           ? []
           : [
-              `${names.get(data.participantId ?? '') ?? 'Um jogador'} foi eliminado.`,
+              game.phase === 'dawn'
+                ? dawnDeathAnnouncement(
+                    names.get(data.participantId ?? '') ?? 'Um jogador',
+                    `${game.id}:${effect.sequence}`,
+                  )
+                : `${names.get(data.participantId ?? '') ?? 'Um jogador'} foi eliminado.`,
             ];
       }
       if (effect.effect_type === 'no-exile')
@@ -2674,6 +2726,13 @@ export class GameService {
         ];
       return ['O estado da partida mudou.'];
     });
+    if (game.phase === 'dawn' && announcements.length === 0)
+      return [
+        dawnNoDeathAnnouncement(
+          `${game.id}:${sourcePhase?.sequence ?? game.round}`,
+        ),
+      ];
+    return announcements;
   }
 
   private startBlockers(
