@@ -123,6 +123,37 @@ describe('cliente HTTP', () => {
       '/api/rooms/LUAR/return',
       expect.objectContaining({ method: 'POST' }),
     );
+
+    const message = {
+      commandId: 'afterlife-message-1',
+      expectedVersion: 4,
+      text: 'Ainda aqui',
+    };
+    await api.sendAfterlifeMessage('LUAR', message);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/rooms/LUAR/afterlife/messages',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(message),
+      }),
+    );
+
+    const entry = {
+      commandId: 'afterlife-entry-1',
+      expectedVersion: 5,
+      exileTargetId: 'p2',
+      werewolfTargetIds: ['p3'],
+      team: 'village' as const,
+      wager: 2,
+    };
+    await api.replaceAfterlifeEntry('LUAR', 2, entry);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/rooms/LUAR/afterlife/rounds/2/entry',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify(entry),
+      }),
+    );
   });
 
   it('retorna null quando o retorno pós-jogo leva à página inicial', async () => {

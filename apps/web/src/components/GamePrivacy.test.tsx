@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { avatarIds, type GameCommand } from '@our-werewolf/shared';
+import {
+  avatarIds,
+  type AfterlifeEntryCommand,
+  type GameCommand,
+} from '@our-werewolf/shared';
 import { GameScreen } from './GameScreen';
 import { ParticipantAvatar } from './ParticipantAvatar';
 import { SecretRoleCard } from './SecretRoleCard';
@@ -705,5 +709,262 @@ describe('fases e decisões', () => {
       screen.getByRole('button', { name: 'Voltar para sala ou início' }),
     );
     expect(onReturn).toHaveBeenCalledOnce();
+  });
+});
+
+describe('entretenimento dos mortos', () => {
+  const afterlifeSnapshot = makeSnapshot({
+    public: {
+      ...makeSnapshot().public,
+      status: 'playing',
+      phase: 'dawn',
+      round: 2,
+      announcements: ['Bento foi eliminado durante a noite.'],
+      players: makeSnapshot().public.players.map((player) =>
+        player.id === 'p1' ? { ...player, alive: false } : player,
+      ),
+    },
+    private: {
+      ...makeSnapshot().private,
+      role: 'villager',
+      alignment: 'village',
+      afterlife: {
+        state: 'open',
+        entranceMessage:
+          'A vila encerrou sua jornada, mas seu espírito continua observando. Faça suas previsões e dispute o título de Oráculo do Além.',
+        messages: [
+          {
+            id: 'm1',
+            authorId: 'p4',
+            authorNickname: 'Davi',
+            text: '<img src=x onerror=alert(1)>',
+            createdAt: new Date(0).toISOString(),
+          },
+        ],
+        availablePoints: 10,
+        round: 2,
+        entry: {
+          round: 2,
+          exileTargetId: null,
+          werewolfTargetIds: [],
+          team: null,
+          wager: null,
+          submittedAt: null,
+        },
+        eligibleTargetIds: ['p2', 'p3'],
+      },
+    },
+    host: null,
+  });
+
+  const props = {
+    network: 'connected' as const,
+    privateFresh: true,
+    busy: false,
+    message: null,
+    onCommand: vi.fn(),
+    onReadyForVote: vi.fn(),
+    onAcknowledgeDayResolution: vi.fn(),
+    onAvatarChange: vi.fn(),
+    onReturn: vi.fn(),
+    onInstall: vi.fn(),
+  };
+
+  it('mostra banner, chat em texto simples e confirma previsões pelo servidor', async () => {
+    const user = userEvent.setup();
+    const onEntry = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValue(true);
+    const onMessage = vi.fn().mockResolvedValue(true);
+    const { container } = render(
+      <GameScreen
+        snapshot={afterlifeSnapshot}
+        {...props}
+        onAfterlifeMessage={onMessage}
+        onAfterlifeEntry={onEntry}
+      />,
+    );
+
+    expect(screen.getByText(/A vila encerrou sua jornada/)).toHaveAttribute(
+      'role',
+      'status',
+    );
+    expect(
+      screen.getByText('<img src=x onerror=alert(1)>'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('region', { name: 'Sua carta secreta' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'O que aconteceu' }),
+    ).not.toBeInTheDocument();
+    const newsButton = screen.getByRole('button', {
+      name: 'Ver notícias da vila',
+    });
+    expect(newsButton).toHaveAttribute('aria-expanded', 'false');
+    expect(
+      screen.queryByText('Bento foi eliminado durante a noite.'),
+    ).not.toBeInTheDocument();
+    await user.click(newsButton);
+    expect(newsButton).toHaveAttribute('aria-expanded', 'true');
+    expect(
+      screen.getByText('Bento foi eliminado durante a noite.'),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Ocultar notícias da vila' }),
+    );
+    expect(
+      screen.queryByText('Bento foi eliminado durante a noite.'),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector('.afterlife-chat img')).toBeNull();
+    const bentoChoices = screen.getAllByLabelText('Bento');
+    await user.click(bentoChoices[0]!);
+    const coraChoices = screen.getAllByLabelText('Cora');
+    await user.click(coraChoices[1]!);
+    await user.selectOptions(screen.getByLabelText('Pontos apostados'), '2');
+    await user.click(
+      screen.getByRole('button', { name: 'Confirmar previsões' }),
+    );
+    expect(
+      screen.queryByText('Previsões confirmadas pelo servidor.'),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Confirmar previsões' }),
+    );
+    expect(
+      screen.getByText('Previsões confirmadas pelo servidor.'),
+    ).toBeInTheDocument();
+    expect(onEntry).toHaveBeenCalledTimes(2);
+    const firstEntry = onEntry.mock.calls[0]![1] as AfterlifeEntryCommand;
+    const retriedEntry = onEntry.mock.calls[1]![1] as AfterlifeEntryCommand;
+    expect(firstEntry.commandId).toBe(retriedEntry.commandId);
+
+    await user.type(screen.getByLabelText('Mensagem aos mortos'), 'Olá');
+    await user.click(screen.getByRole('button', { name: 'Enviar ao Além' }));
+    expect(onMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Olá', expectedVersion: 3 }),
+    );
+    expect(
+      screen.getByText('Mensagem entregue aos mortos.'),
+    ).toBeInTheDocument();
+  });
+
+  it('mantém o conteúdo visível e bloqueia escritas sem conexão', () => {
+    render(
+      <GameScreen
+        snapshot={afterlifeSnapshot}
+        {...props}
+        network="offline"
+        privateFresh={false}
+        onAfterlifeMessage={vi.fn()}
+        onAfterlifeEntry={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Chat dos mortos')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mensagem aos mortos')).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Confirmar previsões' }),
+    ).toBeDisabled();
+  });
+
+  it('permite consultar a fase mesmo quando não há novas notícias', async () => {
+    const user = userEvent.setup();
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          ...afterlifeSnapshot,
+          public: { ...afterlifeSnapshot.public, announcements: [] },
+        })}
+        {...props}
+        onAfterlifeMessage={vi.fn()}
+        onAfterlifeEntry={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Ver notícias da vila' }),
+    );
+    expect(
+      screen.getByText('Nenhuma nova notícia foi anunciada.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Rodada 2 · Alvorada')).toBeInTheDocument();
+  });
+
+  it('mostra ranking empatado e extrato apenas no final de um eliminado', () => {
+    const finalAfterlife = {
+      state: 'finished' as const,
+      entranceMessage: null,
+      messages: [],
+      availablePoints: 12,
+      ledger: [
+        {
+          id: 'l1',
+          round: 1,
+          reason: 'initial' as const,
+          amount: 10,
+          createdAt: new Date(0).toISOString(),
+        },
+        {
+          id: 'l2',
+          round: 1,
+          reason: 'team-wager' as const,
+          amount: 2,
+          createdAt: new Date(1).toISOString(),
+        },
+      ],
+      ranking: [
+        {
+          participantId: 'p1',
+          nickname: 'Iara',
+          points: 12,
+          rank: 1,
+          oracle: true,
+        },
+        {
+          participantId: 'p4',
+          nickname: 'Davi',
+          points: 12,
+          rank: 1,
+          oracle: true,
+        },
+      ],
+      oracleIds: ['p1', 'p4'],
+    };
+    const finalPublic = {
+      ...afterlifeSnapshot.public,
+      status: 'finished' as const,
+      phase: 'finished' as const,
+      winner: 'village' as const,
+    };
+    const { rerender } = render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: finalPublic,
+          private: { ...afterlifeSnapshot.private, afterlife: finalAfterlife },
+          host: null,
+        })}
+        {...props}
+      />,
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Oráculos do Além' }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Oráculo do Além')).toHaveLength(2);
+    expect(screen.getByText('Aposta na equipe')).toBeInTheDocument();
+    expect(screen.getByText(/Saldo final:/)).toHaveTextContent('12 pontos');
+
+    rerender(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: finalPublic,
+          private: { ...afterlifeSnapshot.private, afterlife: null },
+          host: null,
+        })}
+        {...props}
+      />,
+    );
+    expect(
+      screen.queryByRole('heading', { name: 'Oráculos do Além' }),
+    ).not.toBeInTheDocument();
   });
 });

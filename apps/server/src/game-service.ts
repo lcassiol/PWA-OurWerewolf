@@ -1,6 +1,13 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type {
+  AfterlifeEntryCommand,
+  AfterlifeLedgerEntry,
+  AfterlifeMessage,
+  AfterlifeMessageCommand,
+  AfterlifeRankingEntry,
+  AfterlifeSnapshot,
+  AfterlifeTeam,
   AvatarId,
   AvailableAction,
   GameActionType,
@@ -105,6 +112,9 @@ export type Identity = {
 };
 
 type NightStage = 'cupid' | 'pack' | 'night-actions';
+
+const EXILE_AFTERLIFE_MESSAGE =
+  'A vila encerrou sua jornada, mas seu espírito continua observando. Faça suas previsões e dispute o título de Oráculo do Além.';
 
 export type ServiceMetrics = {
   commandsAccepted: number;
@@ -959,6 +969,233 @@ export class GameService {
     return { duplicate, snapshot: this.project(identity) };
   }
 
+  replaceAfterlifeEntry(
+    identity: Identity,
+    roundValue: unknown,
+    value: unknown,
+  ): { duplicate: boolean; snapshot: GameSnapshot } {
+    const round = Number(roundValue);
+    assert(
+      Number.isInteger(round) && round >= 1,
+      400,
+      'bad_request',
+      'Invalid afterlife round',
+    );
+    const command = this.parseAfterlifeEntryCommand(value);
+    let duplicate = false;
+    inTransaction(this.database, () => {
+      const game = this.getGame(identity.roomId);
+      const prior = this.database
+        .prepare(
+          'SELECT 1 FROM idempotency WHERE participant_id = ? AND command_id = ?',
+        )
+        .get(identity.participantId, command.commandId);
+      if (prior) {
+        duplicate = true;
+        return;
+      }
+      assert(
+        game.status === 'active',
+        409,
+        'phase_closed',
+        'The game is finished',
+      );
+      assert(
+        game.version === command.expectedVersion,
+        409,
+        'stale_command',
+        'The game version has changed',
+      );
+      const afterlifeRound = row<{ id: string; closed_at: string | null }>(
+        this.database
+          .prepare(
+            'SELECT id, closed_at FROM afterlife_rounds WHERE game_id = ? AND round = ?',
+          )
+          .get(game.id, round),
+      );
+      assert(
+        afterlifeRound && !afterlifeRound.closed_at,
+        409,
+        'phase_closed',
+        'That afterlife round is not open',
+      );
+      const current = row<{ wager: number | null }>(
+        this.database
+          .prepare(
+            'SELECT wager FROM afterlife_entries WHERE round_id = ? AND participant_id = ?',
+          )
+          .get(afterlifeRound.id, identity.participantId),
+      );
+      assert(
+        current,
+        403,
+        'forbidden',
+        'Only eligible eliminated players can submit afterlife predictions',
+      );
+      const targetIds = [command.exileTargetId, ...command.werewolfTargetIds];
+      const living = new Set(
+        rows<{ participant_id: string }>(
+          this.database
+            .prepare(
+              'SELECT participant_id FROM assignments WHERE game_id = ? AND alive = 1',
+            )
+            .all(game.id),
+        ).map((assignment) => assignment.participant_id),
+      );
+      assert(
+        targetIds.every((targetId) => living.has(targetId)),
+        400,
+        'bad_request',
+        'Afterlife predictions must target living players',
+      );
+      const balance =
+        (row<{ points: number }>(
+          this.database
+            .prepare(
+              `SELECT coalesce(sum(amount), 0) AS points FROM afterlife_ledger
+               WHERE game_id = ? AND participant_id = ?`,
+            )
+            .get(game.id, identity.participantId),
+        )?.points ?? 0) -
+        (row<{ reserved: number }>(
+          this.database
+            .prepare(
+              `SELECT coalesce(sum(e.wager), 0) AS reserved
+               FROM afterlife_entries e
+               JOIN afterlife_rounds r ON r.id = e.round_id
+               WHERE r.game_id = ? AND e.participant_id = ?`,
+            )
+            .get(game.id, identity.participantId),
+        )?.reserved ?? 0) +
+        (current.wager ?? 0);
+      assert(
+        balance >= command.wager,
+        409,
+        'conflict',
+        'Not enough afterlife points for that wager',
+      );
+      const submittedAt = this.now().toISOString();
+      this.database
+        .prepare(
+          `UPDATE afterlife_entries
+           SET exile_target_id = ?, werewolf_targets_json = ?, team = ?, wager = ?, submitted_at = ?
+           WHERE round_id = ? AND participant_id = ?`,
+        )
+        .run(
+          command.exileTargetId,
+          JSON.stringify(command.werewolfTargetIds),
+          command.team,
+          command.wager,
+          submittedAt,
+          afterlifeRound.id,
+          identity.participantId,
+        );
+      const nextVersion = game.version + 1;
+      this.database
+        .prepare('UPDATE games SET version = ? WHERE id = ?')
+        .run(nextVersion, game.id);
+      this.database
+        .prepare('UPDATE rooms SET version = ? WHERE id = ?')
+        .run(nextVersion, game.room_id);
+      this.database
+        .prepare(
+          `INSERT INTO idempotency
+            (participant_id, command_id, game_id, response_status, response_json, created_at)
+           VALUES (?, ?, ?, 200, ?, ?)`,
+        )
+        .run(
+          identity.participantId,
+          command.commandId,
+          game.id,
+          JSON.stringify({ accepted: true, version: nextVersion }),
+          submittedAt,
+        );
+    });
+    if (!duplicate) this.roomChanged(identity.roomCode);
+    return { duplicate, snapshot: this.project(identity) };
+  }
+
+  sendAfterlifeMessage(
+    identity: Identity,
+    value: unknown,
+  ): { duplicate: boolean; snapshot: GameSnapshot } {
+    const command = this.parseAfterlifeMessageCommand(value);
+    let duplicate = false;
+    inTransaction(this.database, () => {
+      const game = this.getGame(identity.roomId);
+      const prior = this.database
+        .prepare(
+          'SELECT 1 FROM idempotency WHERE participant_id = ? AND command_id = ?',
+        )
+        .get(identity.participantId, command.commandId);
+      if (prior) {
+        duplicate = true;
+        return;
+      }
+      assert(
+        game.status === 'active',
+        409,
+        'phase_closed',
+        'The game is finished',
+      );
+      assert(
+        game.version === command.expectedVersion,
+        409,
+        'stale_command',
+        'The game version has changed',
+      );
+      const assignment = row<{ alive: number }>(
+        this.database
+          .prepare(
+            'SELECT alive FROM assignments WHERE game_id = ? AND participant_id = ?',
+          )
+          .get(game.id, identity.participantId),
+      );
+      assert(
+        assignment?.alive === 0,
+        403,
+        'forbidden',
+        'Only eliminated players can use the afterlife chat',
+      );
+      const createdAt = this.now().toISOString();
+      this.database
+        .prepare(
+          `INSERT INTO afterlife_messages
+            (id, game_id, participant_id, text, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          game.id,
+          identity.participantId,
+          command.text,
+          createdAt,
+        );
+      const nextVersion = game.version + 1;
+      this.database
+        .prepare('UPDATE games SET version = ? WHERE id = ?')
+        .run(nextVersion, game.id);
+      this.database
+        .prepare('UPDATE rooms SET version = ? WHERE id = ?')
+        .run(nextVersion, game.room_id);
+      this.database
+        .prepare(
+          `INSERT INTO idempotency
+            (participant_id, command_id, game_id, response_status, response_json, created_at)
+           VALUES (?, ?, ?, 200, ?, ?)`,
+        )
+        .run(
+          identity.participantId,
+          command.commandId,
+          game.id,
+          JSON.stringify({ accepted: true, version: nextVersion }),
+          createdAt,
+        );
+    });
+    if (!duplicate) this.roomChanged(identity.roomCode);
+    return { duplicate, snapshot: this.project(identity) };
+  }
+
   markReadyForVote(identity: Identity): GameSnapshot {
     let changed = false;
     let advanced = false;
@@ -1206,6 +1443,10 @@ export class GameService {
             .get(game.id, identity.participantId),
         )
       : false;
+    const afterlife =
+      game && assignment?.alive === 0
+        ? this.projectAfterlife(game, identity.participantId, participants)
+        : null;
     const blockers =
       room.status === 'lobby' ? this.startBlockers(room, participants) : [];
     const snapshot: GameSnapshot = {
@@ -1261,6 +1502,7 @@ export class GameService {
         acknowledgedDayResolution:
           dayResolutionAcknowledgement?.selfAcknowledged ?? false,
         personalWinner,
+        afterlife,
       },
       host: identity.isHost
         ? {
@@ -1356,9 +1598,13 @@ export class GameService {
     const acknowledged = rows<{ participant_id: string }>(
       this.database
         .prepare(
-          "SELECT participant_id FROM actions WHERE phase_id = ? AND action_type = 'day-resolution-ok'",
+          `SELECT participant_id FROM assignments
+           WHERE game_id = ? AND alive = 0
+           UNION
+           SELECT participant_id FROM actions
+           WHERE phase_id = ? AND action_type = 'day-resolution-ok'`,
         )
-        .all(phaseId),
+        .all(gameId, phaseId),
     );
     return {
       acknowledgedCount: acknowledged.length,
@@ -1367,6 +1613,184 @@ export class GameService {
         (item) => item.participant_id === participantId,
       ),
     };
+  }
+
+  private projectAfterlife(
+    game: GameRow,
+    participantId: string,
+    participants: ParticipantRow[],
+  ): AfterlifeSnapshot {
+    const entranceMessage = this.database
+      .prepare(
+        `SELECT 1 FROM effects
+         WHERE game_id = ? AND effect_type = 'elimination'
+           AND json_extract(data_json, '$.participantId') = ?
+           AND json_extract(data_json, '$.cause') = 'exile' LIMIT 1`,
+      )
+      .get(game.id, participantId)
+      ? EXILE_AFTERLIFE_MESSAGE
+      : null;
+    const messages = rows<{
+      id: string;
+      participant_id: string;
+      text: string;
+      created_at: string;
+      nickname: string;
+    }>(
+      this.database
+        .prepare(
+          `SELECT m.id, m.participant_id, m.text, m.created_at, p.nickname
+           FROM afterlife_messages m JOIN participants p ON p.id = m.participant_id
+           WHERE m.game_id = ? ORDER BY m.created_at, m.id`,
+        )
+        .all(game.id),
+    ).map((message): AfterlifeMessage => ({
+      id: message.id,
+      authorId: message.participant_id,
+      authorNickname: message.nickname,
+      text: message.text,
+      createdAt: message.created_at,
+    }));
+    const ledgerTotal =
+      row<{ points: number }>(
+        this.database
+          .prepare(
+            `SELECT coalesce(sum(amount), 0) AS points FROM afterlife_ledger
+             WHERE game_id = ? AND participant_id = ?`,
+          )
+          .get(game.id, participantId),
+      )?.points ?? 0;
+    const reserved =
+      game.status === 'active'
+        ? (row<{ points: number }>(
+            this.database
+              .prepare(
+                `SELECT coalesce(sum(e.wager), 0) AS points
+                 FROM afterlife_entries e
+                 JOIN afterlife_rounds r ON r.id = e.round_id
+                 WHERE r.game_id = ? AND e.participant_id = ?`,
+              )
+              .get(game.id, participantId),
+          )?.points ?? 0)
+        : 0;
+    const common = {
+      entranceMessage,
+      messages,
+      availablePoints: Math.max(0, ledgerTotal - reserved),
+    };
+    if (game.status === 'finished') {
+      const ledger = rows<{
+        id: string;
+        round: number | null;
+        reason: AfterlifeLedgerEntry['reason'];
+        amount: number;
+        created_at: string;
+      }>(
+        this.database
+          .prepare(
+            `SELECT id, round, reason, amount, created_at FROM afterlife_ledger
+             WHERE game_id = ? AND participant_id = ? ORDER BY created_at, id`,
+          )
+          .all(game.id, participantId),
+      ).map((entry) => ({
+        id: entry.id,
+        round: entry.round,
+        reason: entry.reason,
+        amount: entry.amount,
+        createdAt: entry.created_at,
+      }));
+      const ranking = this.afterlifeRanking(game.id, participants);
+      return {
+        ...common,
+        availablePoints: Math.max(0, ledgerTotal),
+        state: 'finished',
+        ledger,
+        ranking,
+        oracleIds: ranking
+          .filter((entry) => entry.oracle)
+          .map((entry) => entry.participantId),
+      };
+    }
+    const current = row<{
+      round: number;
+      closed_at: string | null;
+      exile_target_id: string | null;
+      werewolf_targets_json: string;
+      team: AfterlifeTeam | null;
+      wager: number | null;
+      submitted_at: string | null;
+    }>(
+      this.database
+        .prepare(
+          `SELECT r.round, r.closed_at, e.exile_target_id,
+                  e.werewolf_targets_json, e.team, e.wager, e.submitted_at
+           FROM afterlife_entries e JOIN afterlife_rounds r ON r.id = e.round_id
+           WHERE r.game_id = ? AND e.participant_id = ?
+           ORDER BY r.round DESC LIMIT 1`,
+        )
+        .get(game.id, participantId),
+    );
+    if (!current)
+      return { ...common, state: 'waiting', nextRound: game.round + 1 };
+    const entry = {
+      round: current.round,
+      exileTargetId: current.exile_target_id,
+      werewolfTargetIds: JSON.parse(current.werewolf_targets_json) as string[],
+      team: current.team,
+      wager: current.wager,
+      submittedAt: current.submitted_at,
+    };
+    if (current.closed_at)
+      return { ...common, state: 'closed', round: current.round, entry };
+    return {
+      ...common,
+      state: 'open',
+      round: current.round,
+      entry,
+      eligibleTargetIds: rows<{ participant_id: string }>(
+        this.database
+          .prepare(
+            'SELECT participant_id FROM assignments WHERE game_id = ? AND alive = 1',
+          )
+          .all(game.id),
+      ).map((assignment) => assignment.participant_id),
+    };
+  }
+
+  private afterlifeRanking(
+    gameId: string,
+    participants: ParticipantRow[],
+  ): AfterlifeRankingEntry[] {
+    const scores = rows<{ participant_id: string; points: number }>(
+      this.database
+        .prepare(
+          `SELECT participant_id, sum(amount) AS points FROM afterlife_ledger
+           WHERE game_id = ? GROUP BY participant_id`,
+        )
+        .all(gameId),
+    )
+      .map((score) => ({
+        participantId: score.participant_id,
+        nickname:
+          participants.find(
+            (participant) => participant.id === score.participant_id,
+          )?.nickname ?? 'Unknown',
+        points: Math.max(0, score.points),
+      }))
+      .sort(
+        (left, right) =>
+          right.points - left.points ||
+          left.nickname.localeCompare(right.nickname),
+      );
+    if (scores.length === 0) return [];
+    const top = scores[0]!.points;
+    let previousPoints: number | undefined;
+    let rank = 0;
+    return scores.map((score, index) => {
+      if (score.points !== previousPoints) rank = index + 1;
+      previousPoints = score.points;
+      return { ...score, rank, oracle: score.points === top };
+    });
   }
 
   setConnected(identity: Identity, connected: boolean): void {
@@ -1522,6 +1946,7 @@ export class GameService {
     if (claimed.changes === 0) return false;
     this.recordMissingAbstentions(game, phase);
 
+    if (phase.kind === 'voting') this.closeAfterlifeRound(game.id, phase.round);
     if (phase.kind === 'first-night' || phase.kind === 'night')
       this.resolveNight(game, phase);
     if (phase.kind === 'voting') this.resolveDay(game, phase);
@@ -1598,11 +2023,46 @@ export class GameService {
         stage,
         resumePhase,
       );
+    if (next === 'dawn') this.openAfterlifeRound(game.id, round, now);
     this.bumpGameVersion(game.id, game.room_id, {
       phase: next,
       round,
       deadline,
     });
+  }
+
+  private openAfterlifeRound(gameId: string, round: number, now: Date): void {
+    const roundId = randomUUID();
+    this.database
+      .prepare(
+        `INSERT OR IGNORE INTO afterlife_rounds
+          (id, game_id, round, opened_at) VALUES (?, ?, ?, ?)`,
+      )
+      .run(roundId, gameId, round, now.toISOString());
+    const stored = row<{ id: string }>(
+      this.database
+        .prepare(
+          'SELECT id FROM afterlife_rounds WHERE game_id = ? AND round = ?',
+        )
+        .get(gameId, round),
+    );
+    assert(stored, 409, 'conflict', 'The afterlife round is unavailable');
+    this.database
+      .prepare(
+        `INSERT OR IGNORE INTO afterlife_entries (round_id, participant_id)
+         SELECT ?, participant_id FROM assignments
+         WHERE game_id = ? AND alive = 0`,
+      )
+      .run(stored.id, gameId);
+  }
+
+  private closeAfterlifeRound(gameId: string, round: number): void {
+    this.database
+      .prepare(
+        `UPDATE afterlife_rounds SET closed_at = ?
+         WHERE game_id = ? AND round = ? AND closed_at IS NULL`,
+      )
+      .run(this.now().toISOString(), gameId, round);
   }
 
   private bumpGameVersion(
@@ -1840,7 +2300,51 @@ export class GameService {
       reason: result.vote.reason,
       tally: result.vote.tally,
     });
+    this.settleAfterlifeExile(game.id, phase.round, result.vote.exiledPlayerId);
     this.applyDomainDeaths(game.id, phase.id, result.players, result.deaths);
+  }
+
+  private settleAfterlifeExile(
+    gameId: string,
+    round: number,
+    exiledPlayerId: string | null,
+  ): void {
+    const now = this.now().toISOString();
+    this.database
+      .prepare(
+        `UPDATE afterlife_rounds
+         SET exile_target_id = ?, settled_at = ?
+         WHERE game_id = ? AND round = ? AND settled_at IS NULL`,
+      )
+      .run(exiledPlayerId, now, gameId, round);
+    if (!exiledPlayerId) return;
+    const correct = rows<{ participant_id: string }>(
+      this.database
+        .prepare(
+          `SELECT e.participant_id FROM afterlife_entries e
+           JOIN afterlife_rounds r ON r.id = e.round_id
+           WHERE r.game_id = ? AND r.round = ?
+             AND e.submitted_at IS NOT NULL AND e.exile_target_id = ?`,
+        )
+        .all(gameId, round, exiledPlayerId),
+    );
+    for (const entry of correct) {
+      this.database
+        .prepare(
+          `INSERT OR IGNORE INTO afterlife_ledger
+            (id, game_id, participant_id, round, reason, event_key, amount, data_json, created_at)
+           VALUES (?, ?, ?, ?, 'exile-prediction', ?, 3, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          gameId,
+          entry.participant_id,
+          round,
+          `exile:${round}`,
+          JSON.stringify({ exiledPlayerId }),
+          now,
+        );
+    }
   }
 
   private resolveHunter(game: GameRow, phase: PhaseRow): void {
@@ -1882,6 +2386,15 @@ export class GameService {
       causedById: string | null;
     }[],
   ): void {
+    const newlyDead = new Set(
+      rows<{ participant_id: string }>(
+        this.database
+          .prepare(
+            'SELECT participant_id FROM assignments WHERE game_id = ? AND alive = 1',
+          )
+          .all(gameId),
+      ).map((assignment) => assignment.participant_id),
+    );
     for (const player of players) {
       this.database
         .prepare(
@@ -1890,6 +2403,23 @@ export class GameService {
         .run(player.alive ? 1 : 0, gameId, player.id);
     }
     for (const death of deaths) {
+      if (newlyDead.has(death.playerId)) {
+        this.database
+          .prepare(
+            `INSERT OR IGNORE INTO afterlife_ledger
+              (id, game_id, participant_id, round, reason, event_key, amount, data_json, created_at)
+             SELECT ?, ?, ?, p.round, 'initial', 'initial', 10, ?, ?
+             FROM phases p WHERE p.id = ?`,
+          )
+          .run(
+            randomUUID(),
+            gameId,
+            death.playerId,
+            JSON.stringify({ cause: death.cause }),
+            this.now().toISOString(),
+            phaseId,
+          );
+      }
       this.addEffect(gameId, phaseId, 'elimination', 'public', null, {
         participantId: death.playerId,
         cause: death.cause,
@@ -1942,6 +2472,7 @@ export class GameService {
         )
         .run(game.id, participantId, 'personal', 'personal');
     }
+    this.settleAfterlifeFinal(game.id, victory.mainWinner);
     const version =
       row<{ version: number }>(
         this.database
@@ -1965,6 +2496,71 @@ export class GameService {
     this.addEffect(game.id, null, 'game-finished', 'public', null, {
       winner: victory.mainWinner,
     });
+  }
+
+  private settleAfterlifeFinal(gameId: string, winner: AfterlifeTeam): void {
+    const entries = rows<{
+      round: number;
+      participant_id: string;
+      werewolf_targets_json: string;
+      team: AfterlifeTeam;
+      wager: number;
+    }>(
+      this.database
+        .prepare(
+          `SELECT r.round, e.participant_id, e.werewolf_targets_json, e.team, e.wager
+           FROM afterlife_entries e JOIN afterlife_rounds r ON r.id = e.round_id
+           WHERE r.game_id = ? AND e.submitted_at IS NOT NULL`,
+        )
+        .all(gameId),
+    );
+    const werewolves = new Set(
+      rows<{ participant_id: string }>(
+        this.database
+          .prepare(
+            "SELECT participant_id FROM assignments WHERE game_id = ? AND role IN ('werewolf', 'alpha-wolf')",
+          )
+          .all(gameId),
+      ).map((assignment) => assignment.participant_id),
+    );
+    const now = this.now().toISOString();
+    for (const entry of entries) {
+      const targets = JSON.parse(entry.werewolf_targets_json) as string[];
+      for (const targetId of targets) {
+        this.database
+          .prepare(
+            `INSERT OR IGNORE INTO afterlife_ledger
+              (id, game_id, participant_id, round, reason, event_key, amount, data_json, created_at)
+             VALUES (?, ?, ?, ?, 'werewolf-mark', ?, ?, ?, ?)`,
+          )
+          .run(
+            randomUUID(),
+            gameId,
+            entry.participant_id,
+            entry.round,
+            `werewolf:${entry.round}:${targetId}`,
+            werewolves.has(targetId) ? 1 : -1,
+            JSON.stringify({ targetId }),
+            now,
+          );
+      }
+      this.database
+        .prepare(
+          `INSERT OR IGNORE INTO afterlife_ledger
+            (id, game_id, participant_id, round, reason, event_key, amount, data_json, created_at)
+           VALUES (?, ?, ?, ?, 'team-wager', ?, ?, ?, ?)`,
+        )
+        .run(
+          randomUUID(),
+          gameId,
+          entry.participant_id,
+          entry.round,
+          `wager:${entry.round}`,
+          entry.team === winner ? entry.wager : -entry.wager,
+          JSON.stringify({ predicted: entry.team, winner }),
+          now,
+        );
+    }
   }
 
   private allRequiredActorsSubmitted(game: GameRow, phase: PhaseRow): boolean {
@@ -2379,6 +2975,115 @@ export class GameService {
       expectedPhase: candidate.expectedPhase as GamePhase,
       action: candidate.action as GameActionType,
       targets: candidate.targets,
+    };
+  }
+
+  private parseAfterlifeEntryCommand(value: unknown): AfterlifeEntryCommand {
+    assert(
+      value && typeof value === 'object',
+      400,
+      'bad_request',
+      'Command body must be an object',
+    );
+    const candidate = value as Record<string, unknown>;
+    assert(
+      typeof candidate.commandId === 'string' &&
+        /^[A-Za-z0-9_-]{8,128}$/.test(candidate.commandId),
+      400,
+      'bad_request',
+      'Invalid commandId',
+    );
+    assert(
+      Number.isInteger(candidate.expectedVersion) &&
+        Number(candidate.expectedVersion) >= 1,
+      400,
+      'bad_request',
+      'Invalid expectedVersion',
+    );
+    assert(
+      typeof candidate.exileTargetId === 'string' &&
+        candidate.exileTargetId.length > 0,
+      400,
+      'bad_request',
+      'Invalid exile target',
+    );
+    assert(
+      Array.isArray(candidate.werewolfTargetIds) &&
+        candidate.werewolfTargetIds.every(
+          (targetId) => typeof targetId === 'string',
+        ) &&
+        new Set(candidate.werewolfTargetIds).size ===
+          candidate.werewolfTargetIds.length,
+      400,
+      'bad_request',
+      'Invalid werewolf targets',
+    );
+    const teams = new Set<AfterlifeTeam>(['village', 'werewolves', 'lovers']);
+    assert(
+      teams.has(candidate.team as AfterlifeTeam),
+      400,
+      'bad_request',
+      'Invalid winner prediction',
+    );
+    assert(
+      Number.isInteger(candidate.wager) &&
+        Number(candidate.wager) >= 1 &&
+        Number(candidate.wager) <= 3,
+      400,
+      'bad_request',
+      'Invalid wager',
+    );
+    return {
+      commandId: candidate.commandId,
+      expectedVersion: Number(candidate.expectedVersion),
+      exileTargetId: candidate.exileTargetId,
+      werewolfTargetIds: [...candidate.werewolfTargetIds] as string[],
+      team: candidate.team as AfterlifeTeam,
+      wager: Number(candidate.wager),
+    };
+  }
+
+  private parseAfterlifeMessageCommand(
+    value: unknown,
+  ): AfterlifeMessageCommand {
+    assert(
+      value && typeof value === 'object',
+      400,
+      'bad_request',
+      'Command body must be an object',
+    );
+    const candidate = value as Record<string, unknown>;
+    assert(
+      typeof candidate.commandId === 'string' &&
+        /^[A-Za-z0-9_-]{8,128}$/.test(candidate.commandId),
+      400,
+      'bad_request',
+      'Invalid commandId',
+    );
+    assert(
+      Number.isInteger(candidate.expectedVersion) &&
+        Number(candidate.expectedVersion) >= 1,
+      400,
+      'bad_request',
+      'Invalid expectedVersion',
+    );
+    assert(
+      typeof candidate.text === 'string',
+      400,
+      'bad_request',
+      'Message text must be a string',
+    );
+    const text = candidate.text.normalize('NFKC').trim();
+    assert(
+      text.length >= 1 && text.length <= 500,
+      400,
+      'bad_request',
+      'Message text must contain 1 to 500 characters',
+    );
+    return {
+      commandId: candidate.commandId,
+      expectedVersion: Number(candidate.expectedVersion),
+      text,
     };
   }
 

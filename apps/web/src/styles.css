@@ -133,7 +133,8 @@ body::before {
 
 button,
 input,
-select {
+select,
+textarea {
   min-height: 44px;
   max-width: 100%;
   font: inherit;
@@ -153,6 +154,7 @@ button {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+textarea:focus-visible,
 summary:focus-visible,
 a:focus-visible {
   outline: 3px solid var(--amber-light);
@@ -2041,6 +2043,320 @@ input::placeholder {
   justify-self: start;
 }
 
+.afterlife-panel {
+  position: relative;
+  padding: clamp(1rem, 4vw, 1.75rem);
+  margin: 1rem 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      color-mix(in srgb, var(--theme-accent) 15%, transparent),
+      transparent 18rem
+    ),
+    color-mix(in srgb, var(--theme-panel) 72%, var(--theme-background));
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.24);
+}
+
+.afterlife-entrance {
+  padding: 0.85rem 1rem;
+  margin: 0 0 1rem;
+  color: var(--amber-light);
+  border-left: 3px solid var(--amber);
+  background: color-mix(in srgb, var(--theme-accent) 9%, transparent);
+  font-family: var(--serif);
+  line-height: 1.45;
+}
+
+.afterlife-heading,
+.afterlife-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.afterlife-heading > strong {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.7rem;
+  color: var(--theme-background);
+  border-radius: 999px;
+  background: var(--amber-light);
+  font-size: 0.72rem;
+}
+
+.afterlife-news {
+  display: grid;
+  margin-top: 0.85rem;
+  justify-items: start;
+  gap: 0.65rem;
+}
+
+.afterlife-news-toggle {
+  min-height: 44px;
+  padding-inline: 0;
+  color: var(--amber-light);
+  font-weight: 800;
+}
+
+.afterlife-news-toggle::after {
+  margin-left: 0.45rem;
+  content: '↓';
+}
+
+.afterlife-news-toggle[aria-expanded='true']::after {
+  content: '↑';
+}
+
+.afterlife-news > section {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--theme-background) 58%, transparent);
+}
+
+.afterlife-news h3 {
+  margin-bottom: 0.65rem;
+  color: var(--paper);
+  font-size: 1.1rem;
+}
+
+.afterlife-news ul {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  gap: 0.45rem;
+  list-style: none;
+}
+
+.afterlife-news li {
+  padding: 0.55rem 0;
+  overflow-wrap: anywhere;
+  color: var(--paper-muted);
+  border-top: 1px solid var(--line);
+  line-height: 1.45;
+}
+
+.afterlife-news .muted-copy {
+  margin: 0;
+}
+
+.afterlife-grid {
+  display: grid;
+  margin-top: 1.25rem;
+  gap: 1rem;
+}
+
+.afterlife-chat,
+.afterlife-prediction {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.afterlife-chat h3,
+.afterlife-prediction h3,
+.afterlife-ledger h3 {
+  margin-bottom: 0.8rem;
+  color: var(--amber-light);
+  font-size: 1.15rem;
+}
+
+.afterlife-chat ol {
+  display: grid;
+  max-height: 18rem;
+  padding: 0;
+  margin: 0 0 1rem;
+  gap: 0.55rem;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.afterlife-chat li {
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border-left: 2px solid var(--line-strong);
+  background: color-mix(in srgb, var(--theme-background) 52%, transparent);
+}
+
+.afterlife-chat li strong {
+  color: var(--amber-light);
+  font-size: 0.72rem;
+}
+
+.afterlife-chat li p {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--paper);
+  line-height: 1.45;
+}
+
+.afterlife-chat form,
+.afterlife-prediction form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.afterlife-chat form {
+  margin-top: auto;
+}
+
+.afterlife-chat textarea {
+  width: 100%;
+  min-height: 6rem;
+  padding: 0.7rem;
+  resize: vertical;
+  color: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--theme-background) 78%, black);
+  font: inherit;
+}
+
+.afterlife-form-footer small {
+  color: var(--paper-muted);
+}
+
+.afterlife-prediction fieldset {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  gap: 0.4rem;
+  border: 0;
+}
+
+.afterlife-prediction legend {
+  margin-bottom: 0.45rem;
+  color: var(--paper-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.afterlife-choice {
+  display: grid;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  grid-template-columns: 1.125rem minmax(0, 1fr);
+  padding: 0.55rem 0.65rem;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+.afterlife-choice:has(input:checked) {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--theme-accent) 11%, transparent);
+}
+
+.afterlife-choice:has(input:focus-visible) {
+  outline: 3px solid var(--amber-light);
+  outline-offset: 2px;
+}
+
+.afterlife-choice input {
+  width: 1.125rem;
+  height: 1.125rem;
+  min-height: 0;
+  margin: 0;
+}
+
+.afterlife-wager {
+  padding-top: 0.85rem !important;
+  border-top: 1px solid var(--line) !important;
+}
+
+.afterlife-team-options {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+}
+
+.afterlife-points-control {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+  color: var(--paper-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.afterlife-points-control select {
+  width: 100%;
+  padding: 0 0.65rem;
+  color: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--charcoal-soft);
+}
+
+.afterlife-entry-actions {
+  display: grid;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.afterlife-entry-actions > p {
+  margin: 0;
+  color: var(--amber-light);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+@media (max-width: 420px) {
+  .afterlife-panel {
+    padding: 0.75rem;
+    margin-inline: -0.25rem;
+  }
+
+  .afterlife-chat,
+  .afterlife-prediction {
+    padding: 0.75rem;
+  }
+
+  .afterlife-heading {
+    align-items: flex-start;
+  }
+
+  .afterlife-heading > strong {
+    margin-left: auto;
+  }
+
+  .afterlife-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .afterlife-form-footer .secondary-button {
+    width: 100%;
+  }
+
+  .afterlife-news,
+  .afterlife-news-toggle {
+    width: 100%;
+  }
+
+  .afterlife-news-toggle {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
 .village-strip {
   padding: 1.5rem 0.25rem;
 }
@@ -2162,9 +2478,111 @@ input::placeholder {
 }
 
 .final-roles,
+.afterlife-final,
 .chronicle {
   max-width: 760px;
   margin: 0 auto 0.85rem;
+}
+
+.afterlife-final h2 {
+  margin-bottom: 1rem;
+}
+
+.afterlife-ranking,
+.afterlife-ledger ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.afterlife-ranking li {
+  display: grid;
+  min-height: 56px;
+  align-items: center;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  padding: 0.5rem;
+  gap: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+
+.afterlife-ranking li > span,
+.afterlife-ranking li > small {
+  color: var(--paper-muted);
+  font-size: 0.68rem;
+}
+
+.afterlife-ranking li > small {
+  grid-column: 2 / -1;
+}
+
+.afterlife-ranking li.is-oracle {
+  border-color: var(--amber);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--theme-accent) 12%, transparent),
+    transparent
+  );
+}
+
+.afterlife-ranking li.is-oracle > small,
+.afterlife-ranking li.is-oracle > b {
+  color: var(--amber-light);
+}
+
+.afterlife-ledger {
+  padding-top: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.afterlife-ledger li,
+.afterlife-ledger > p {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  gap: 1rem;
+  color: var(--paper-muted);
+}
+
+.afterlife-ledger li strong,
+.afterlife-ledger > p strong {
+  color: var(--paper);
+}
+
+@media (min-width: 820px) {
+  .afterlife-grid {
+    align-items: stretch;
+    grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.5fr);
+  }
+
+  .afterlife-prediction form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .afterlife-prediction .afterlife-wager,
+  .afterlife-entry-actions {
+    grid-column: 1 / -1;
+  }
+
+  .afterlife-team-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .afterlife-wager {
+    grid-template-columns: minmax(0, 1fr) 9rem;
+  }
+
+  .afterlife-wager legend {
+    grid-column: 1 / -1;
+  }
+
+  .afterlife-entry-actions {
+    grid-template-columns: minmax(12rem, 18rem) minmax(0, 1fr);
+  }
+
+  .afterlife-entry-actions > p {
+    text-align: left;
+  }
 }
 
 .final-roles h2 {

@@ -108,6 +108,80 @@ export type AvailableAction = ActionChoice & {
   alternatives?: ActionChoice[];
 };
 
+export type AfterlifeTeam = 'village' | 'werewolves' | 'lovers';
+
+export type AfterlifeMessage = {
+  id: string;
+  authorId: string;
+  authorNickname: string;
+  text: string;
+  createdAt: string;
+};
+
+export type AfterlifeEntry = {
+  round: number;
+  exileTargetId: string | null;
+  werewolfTargetIds: string[];
+  team: AfterlifeTeam | null;
+  wager: number | null;
+  submittedAt: string | null;
+};
+
+export type AfterlifeLedgerEntry = {
+  id: string;
+  round: number | null;
+  reason: 'initial' | 'exile-prediction' | 'werewolf-mark' | 'team-wager';
+  amount: number;
+  createdAt: string;
+};
+
+export type AfterlifeRankingEntry = {
+  participantId: string;
+  nickname: string;
+  points: number;
+  rank: number;
+  oracle: boolean;
+};
+
+type AfterlifeCommon = {
+  entranceMessage: string | null;
+  messages: AfterlifeMessage[];
+  availablePoints: number;
+};
+
+export type AfterlifeSnapshot = AfterlifeCommon &
+  (
+    | { state: 'waiting'; nextRound: number | null }
+    | {
+        state: 'open';
+        round: number;
+        entry: AfterlifeEntry;
+        eligibleTargetIds: string[];
+      }
+    | { state: 'closed'; round: number; entry: AfterlifeEntry | null }
+    | {
+        state: 'finished';
+        ledger: AfterlifeLedgerEntry[];
+        ranking: AfterlifeRankingEntry[];
+        oracleIds: string[];
+      }
+  );
+
+export type AfterlifeMessageCommand = {
+  commandId: string;
+  expectedVersion: number;
+  text: string;
+};
+
+export type AfterlifeEntryCommand = {
+  commandId: string;
+  expectedVersion: number;
+  exileTargetId: string;
+  werewolfTargetIds: string[];
+  team: AfterlifeTeam;
+  wager: number;
+};
+
 export const knowledgeFacts = [
   'werewolf',
   'pack-target',
@@ -135,6 +209,7 @@ export type PrivateSnapshot = {
   readyForVote: boolean;
   acknowledgedDayResolution: boolean;
   personalWinner: boolean;
+  afterlife: AfterlifeSnapshot | null;
 };
 
 export type HostSnapshot = {

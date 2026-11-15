@@ -58,6 +58,9 @@ describe('estrutura mobile e instalação', () => {
     expect(styles).toContain('min-width: 320px');
     expect(styles).toContain('overflow-x: hidden');
     expect(styles).toContain(':focus-visible');
+    expect(styles).toContain('.afterlife-grid');
+    expect(styles).toContain('textarea:focus-visible');
+    expect(styles).toContain('overflow-wrap: anywhere');
   });
 
   it('oferece orientação iOS, foco inicial e fechamento por teclado', async () => {

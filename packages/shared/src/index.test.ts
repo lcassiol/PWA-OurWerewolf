@@ -67,9 +67,30 @@ describe('shared contracts', () => {
         readyForVote: false,
         acknowledgedDayResolution: false,
         personalWinner: false,
+        afterlife: null,
       },
       host: null,
     };
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot);
+  });
+
+  it('keeps discriminated afterlife states JSON safe', () => {
+    const afterlife: NonNullable<GameSnapshot['private']['afterlife']> = {
+      state: 'open',
+      entranceMessage: null,
+      messages: [],
+      availablePoints: 7,
+      round: 2,
+      entry: {
+        round: 2,
+        exileTargetId: 'p2',
+        werewolfTargetIds: ['p3'],
+        team: 'village',
+        wager: 3,
+        submittedAt: new Date(0).toISOString(),
+      },
+      eligibleTargetIds: ['p2', 'p3'],
+    };
+    expect(JSON.parse(JSON.stringify(afterlife))).toEqual(afterlife);
   });
 });

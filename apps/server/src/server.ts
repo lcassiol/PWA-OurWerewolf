@@ -173,7 +173,12 @@ export function createApplication(options: CreateApplicationOptions) {
       sendJson(response, 200, { snapshot: service.project(identity) });
       return;
     }
-    if (method === 'POST' || method === 'PATCH' || method === 'DELETE')
+    if (
+      method === 'POST' ||
+      method === 'PUT' ||
+      method === 'PATCH' ||
+      method === 'DELETE'
+    )
       requireOrigin(origin, options.config.allowedOrigins);
 
     if (url.pathname === '/rooms' && method === 'POST') {
@@ -210,10 +215,54 @@ export function createApplication(options: CreateApplicationOptions) {
     const removeMatch = url.pathname.match(
       /^\/rooms\/([A-Za-z]{4})\/participants\/([0-9a-f-]{36})$/i,
     );
-    const code = (roomMatch?.[1] ?? removeMatch?.[1])?.toUpperCase();
+    const afterlifeMessageMatch = url.pathname.match(
+      /^\/rooms\/([A-Za-z]{4})\/afterlife\/messages$/,
+    );
+    const afterlifeEntryMatch = url.pathname.match(
+      /^\/rooms\/([A-Za-z]{4})\/afterlife\/rounds\/(\d+)\/entry$/,
+    );
+    const code = (
+      roomMatch?.[1] ??
+      removeMatch?.[1] ??
+      afterlifeMessageMatch?.[1] ??
+      afterlifeEntryMatch?.[1]
+    )?.toUpperCase();
     if (code) {
       const identity = requireIdentity(request, code);
       const resource = roomMatch?.[2];
+      if (afterlifeMessageMatch && method === 'POST') {
+        try {
+          const result = service.sendAfterlifeMessage(
+            identity,
+            await readJson(request),
+          );
+          sendJson(response, 200, {
+            accepted: true,
+            duplicate: result.duplicate,
+            snapshot: result.snapshot,
+          });
+        } catch (error) {
+          if (!sendMutationConflict(error, identity, response)) throw error;
+        }
+        return;
+      }
+      if (afterlifeEntryMatch && method === 'PUT') {
+        try {
+          const result = service.replaceAfterlifeEntry(
+            identity,
+            afterlifeEntryMatch[2],
+            await readJson(request),
+          );
+          sendJson(response, 200, {
+            accepted: true,
+            duplicate: result.duplicate,
+            snapshot: result.snapshot,
+          });
+        } catch (error) {
+          if (!sendMutationConflict(error, identity, response)) throw error;
+        }
+        return;
+      }
       if (resource === 'snapshot' && method === 'GET') {
         sendJson(response, 200, { snapshot: service.project(identity) });
         return;
@@ -276,27 +325,7 @@ export function createApplication(options: CreateApplicationOptions) {
             snapshot: result.snapshot,
           });
         } catch (error) {
-          if (
-            error instanceof HttpError &&
-            (error.code === 'stale_command' || error.code === 'phase_closed')
-          ) {
-            let snapshot;
-            try {
-              snapshot = service.project(identity);
-            } catch {
-              snapshot = undefined;
-            }
-            sendJson(response, error.status, {
-              error: {
-                code: error.code,
-                message: error.message,
-                ...(error.details ? { details: error.details } : {}),
-              },
-              ...(snapshot ? { snapshot } : {}),
-            });
-          } else {
-            throw error;
-          }
+          if (!sendMutationConflict(error, identity, response)) throw error;
         }
         return;
       }
@@ -342,6 +371,33 @@ export function createApplication(options: CreateApplicationOptions) {
         'A valid room session is required',
       );
     return identity;
+  }
+
+  function sendMutationConflict(
+    error: unknown,
+    identity: Identity,
+    response: ServerResponse,
+  ): boolean {
+    if (
+      !(error instanceof HttpError) ||
+      (error.code !== 'stale_command' && error.code !== 'phase_closed')
+    )
+      return false;
+    let snapshot;
+    try {
+      snapshot = service.project(identity);
+    } catch {
+      snapshot = undefined;
+    }
+    sendJson(response, error.status, {
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details ? { details: error.details } : {}),
+      },
+      ...(snapshot ? { snapshot } : {}),
+    });
+    return true;
   }
 
   server.on('upgrade', (request, socket, head) => {
@@ -515,7 +571,7 @@ function applyCors(
   }
   response.setHeader(
     'access-control-allow-methods',
-    'GET, POST, PATCH, DELETE, OPTIONS',
+    'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   );
   response.setHeader('access-control-allow-headers', 'content-type');
   response.setHeader('cache-control', 'no-store');

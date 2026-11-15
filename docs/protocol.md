@@ -51,11 +51,24 @@ It requests a complete current projection. Game commands use HTTP so retries hav
 ## Snapshot boundaries
 
 - `public`: room code/status, monotonic version, round, phase, absolute ISO-8601 deadline, public player state/settings/announcements, and main winner.
-- `private`: only the authenticated participant's role, alignment, objective, knowledge, resources, available action, optional alternative actions, and personal-win status.
+- `private`: only the authenticated participant's role, alignment, objective, knowledge, resources, available action, optional alternative actions, personal-win status, and recipient-authorized afterlife state.
 - `host`: lobby controls and non-secret blockers only. Being host grants no extra role visibility.
 - `finalRoles`: omitted until the immutable finished state, then contains the complete reveal and winner flags.
 
 Clients must never infer permissions from role names. They render and submit only `private.availableAction` and its advertised `alternatives`. A deadline is display input, not transition authority.
+
+### Afterlife projection
+
+`private.afterlife` is `null` for living participants. It is present only when the authenticated assignment is eliminated; removed room participants cannot authenticate. Its `state` is a discriminated union:
+
+- `waiting`: chat and available points are visible, but the participant was not eligible when the current round opened.
+- `open`: includes the participant's own entry and current living `eligibleTargetIds`; it never includes another participant's predictions.
+- `closed`: preserves the authenticated participant's last entry without revealing correctness.
+- `finished`: includes the participant's own ledger plus the dead-only ranking and shared Oracle ids.
+
+All states include the dead-only chat in authoritative order. The village-exile entrance message appears only to the exiled recipient. Living snapshots never contain chat, choices, points, or ranking. Final public roles and events do not carry the afterlife ranking.
+
+The server opens one afterlife activity after night deaths when `dawn` opens and fixes eligibility at that moment. It closes the activity before resolving the daytime vote. A correct exile prediction credits 3 points; werewolf marks settle at game end for +1/-1 each; a correct team wager wins its stake as net points and an incorrect wager loses it. Each eliminated participant starts with 10 fictional points, and displayed final scores have a zero floor. Tied top scores share the Oracle title.
 
 ## Versions, commands, and recovery
 
@@ -70,6 +83,8 @@ Every HTTP game command includes:
   "targets": ["participant-uuid"]
 }
 ```
+
+Afterlife message and entry commands omit `expectedPhase` and instead address their resource or round. They still include a stable `commandId` and `expectedVersion`; the server validates the persisted afterlife window rather than trusting client phase state.
 
 - Reusing a processed `commandId` returns success with the current snapshot and does not repeat effects.
 - A mismatched `expectedVersion` returns `stale_command`; a mismatched or expired phase returns `phase_closed`.

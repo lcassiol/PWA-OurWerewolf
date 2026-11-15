@@ -1,5 +1,7 @@
 import type {
   ApiError,
+  AfterlifeEntryCommand,
+  AfterlifeMessageCommand,
   AvatarId,
   GameCommand,
   GameSnapshot,
@@ -127,6 +129,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(command),
     }),
+  sendAfterlifeMessage: (roomCode: string, command: AfterlifeMessageCommand) =>
+    snapshotRequest(
+      `/rooms/${encodeURIComponent(roomCode)}/afterlife/messages`,
+      {
+        method: 'POST',
+        body: JSON.stringify(command),
+      },
+    ),
+  replaceAfterlifeEntry: (
+    roomCode: string,
+    round: number,
+    command: AfterlifeEntryCommand,
+  ) =>
+    snapshotRequest(
+      `/rooms/${encodeURIComponent(roomCode)}/afterlife/rounds/${round}/entry`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(command),
+      },
+    ),
 };
 
 export type ApiClient = typeof api;

@@ -21,6 +21,8 @@ function mockApi(): ApiClient {
     leaveRoom: vi.fn().mockResolvedValue(undefined),
     returnAfterGame: vi.fn().mockResolvedValue(makeSnapshot()),
     sendCommand: vi.fn().mockResolvedValue(makeSnapshot()),
+    sendAfterlifeMessage: vi.fn().mockResolvedValue(makeSnapshot()),
+    replaceAfterlifeEntry: vi.fn().mockResolvedValue(makeSnapshot()),
   };
 }
 

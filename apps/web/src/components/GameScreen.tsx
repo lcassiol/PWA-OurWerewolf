@@ -1,9 +1,13 @@
 import type {
   ActionChoice,
+  AfterlifeEntryCommand,
+  AfterlifeLedgerEntry,
+  AfterlifeMessageCommand,
   AvatarId,
   AvailableAction,
   FinalEvent,
   GameCommand,
+  GamePhase,
   GameSnapshot,
   PlayerSummary,
 } from '@our-werewolf/shared';
@@ -24,6 +28,11 @@ type GameScreenProps = {
   busy: boolean;
   message: string | null;
   onCommand: (command: GameCommand) => Promise<boolean>;
+  onAfterlifeMessage?: (command: AfterlifeMessageCommand) => Promise<boolean>;
+  onAfterlifeEntry?: (
+    round: number,
+    command: AfterlifeEntryCommand,
+  ) => Promise<boolean>;
   onReadyForVote: () => Promise<void>;
   onAcknowledgeDayResolution: () => Promise<void>;
   onAvatarChange: (avatarId: AvatarId) => Promise<void>;
@@ -38,6 +47,8 @@ export function GameScreen({
   busy,
   message,
   onCommand,
+  onAfterlifeMessage,
+  onAfterlifeEntry,
   onReadyForVote,
   onAcknowledgeDayResolution,
   onAvatarChange,
@@ -67,6 +78,7 @@ export function GameScreen({
   const selfAlive = publicState.players.find(
     (player) => player.id === snapshot.private.playerId,
   )?.alive;
+  const afterlife = snapshot.private.afterlife;
 
   return (
     <main className="app-shell game-shell" id="main-content">
@@ -109,54 +121,73 @@ export function GameScreen({
         </div>
       </section>
 
-      <div className="game-grid">
-        <SecretRoleCard
-          privateState={snapshot.private}
-          players={publicState.players}
-          artworkSetId={publicState.roleArtworkSetId ?? 'realistic'}
-          canReveal={network === 'connected' && privateFresh}
-        />
+      {!afterlife ? (
+        <div className="game-grid">
+          <SecretRoleCard
+            privateState={snapshot.private}
+            players={publicState.players}
+            artworkSetId={publicState.roleArtworkSetId ?? 'realistic'}
+            canReveal={network === 'connected' && privateFresh}
+          />
 
-        <section className="panel phase-panel" aria-labelledby="action-title">
-          {currentPhase === 'dawn' || currentPhase === 'day-resolution' ? (
-            <AnnouncementPanel
-              snapshot={snapshot}
-              disabled={busy || network !== 'connected'}
-              onAcknowledge={onAcknowledgeDayResolution}
-            />
-          ) : currentPhase === 'discussion' ? (
-            <DiscussionPanel
-              readiness={publicState.discussionReadiness}
-              ready={snapshot.private.readyForVote}
-              canReady={Boolean(selfAlive)}
-              disabled={busy || network !== 'connected'}
-              onReady={onReadyForVote}
-            />
-          ) : !privateFresh || network !== 'connected' ? (
-            <PrivateUnavailablePanel network={network} />
-          ) : snapshot.private.availableAction ? (
-            <ActionPanel
-              key={`${publicState.phase}-${snapshot.private.availableAction.type}`}
-              action={snapshot.private.availableAction}
-              players={publicState.players}
-              knownPlayers={snapshot.private.knownPlayers}
-              expectedVersion={publicState.version}
-              expectedPhase={currentPhase}
-              disabled={busy || network !== 'connected'}
-              onSubmit={onCommand}
-            />
-          ) : (
-            <WaitingPanel phase={currentPhase} />
-          )}
-          <p className="form-message" role="status" aria-live="polite">
-            {network !== 'connected'
-              ? network === 'offline'
-                ? 'Sem conexão. Nenhuma ação será enviada enquanto você estiver offline.'
-                : 'Reconectando. Aguarde a atualização da fase antes de agir.'
-              : message}
-          </p>
-        </section>
-      </div>
+          <section className="panel phase-panel" aria-labelledby="action-title">
+            {currentPhase === 'dawn' || currentPhase === 'day-resolution' ? (
+              <AnnouncementPanel
+                snapshot={snapshot}
+                disabled={busy || network !== 'connected'}
+                onAcknowledge={onAcknowledgeDayResolution}
+              />
+            ) : currentPhase === 'discussion' ? (
+              <DiscussionPanel
+                readiness={publicState.discussionReadiness}
+                ready={snapshot.private.readyForVote}
+                canReady={Boolean(selfAlive)}
+                disabled={busy || network !== 'connected'}
+                onReady={onReadyForVote}
+              />
+            ) : !privateFresh || network !== 'connected' ? (
+              <PrivateUnavailablePanel network={network} />
+            ) : snapshot.private.availableAction ? (
+              <ActionPanel
+                key={`${publicState.phase}-${snapshot.private.availableAction.type}`}
+                action={snapshot.private.availableAction}
+                players={publicState.players}
+                knownPlayers={snapshot.private.knownPlayers}
+                expectedVersion={publicState.version}
+                expectedPhase={currentPhase}
+                disabled={busy || network !== 'connected'}
+                onSubmit={onCommand}
+              />
+            ) : (
+              <WaitingPanel phase={currentPhase} />
+            )}
+            <p className="form-message" role="status" aria-live="polite">
+              {network !== 'connected'
+                ? network === 'offline'
+                  ? 'Sem conexão. Nenhuma ação será enviada enquanto você estiver offline.'
+                  : 'Reconectando. Aguarde a atualização da fase antes de agir.'
+                : message}
+            </p>
+          </section>
+        </div>
+      ) : null}
+
+      {afterlife ? (
+        <AfterlifePanel
+          key={afterlife.state === 'open' ? afterlife.round : afterlife.state}
+          afterlife={afterlife}
+          players={publicState.players}
+          phase={currentPhase}
+          round={publicState.round}
+          announcements={publicState.announcements}
+          expectedVersion={publicState.version}
+          network={network}
+          privateFresh={privateFresh}
+          busy={busy}
+          {...(onAfterlifeMessage ? { onMessage: onAfterlifeMessage } : {})}
+          {...(onAfterlifeEntry ? { onEntry: onAfterlifeEntry } : {})}
+        />
+      ) : null}
 
       <AliveList
         players={publicState.players}
@@ -171,6 +202,314 @@ export function GameScreen({
         <span>O servidor conduz fases e prazos.</span>
       </footer>
     </main>
+  );
+}
+
+function AfterlifePanel({
+  afterlife,
+  players,
+  phase,
+  round,
+  announcements,
+  expectedVersion,
+  network,
+  privateFresh,
+  busy,
+  onMessage,
+  onEntry,
+}: {
+  afterlife: NonNullable<GameSnapshot['private']['afterlife']>;
+  players: PlayerSummary[];
+  phase: GamePhase;
+  round: number;
+  announcements: string[];
+  expectedVersion: number;
+  network: NetworkState;
+  privateFresh: boolean;
+  busy: boolean;
+  onMessage?: (command: AfterlifeMessageCommand) => Promise<boolean>;
+  onEntry?: (round: number, command: AfterlifeEntryCommand) => Promise<boolean>;
+}) {
+  const open = afterlife.state === 'open' ? afterlife : null;
+  const [messageText, setMessageText] = useState('');
+  const [exileTargetId, setExileTargetId] = useState(
+    open?.entry.exileTargetId ?? '',
+  );
+  const [werewolfTargetIds, setWerewolfTargetIds] = useState<string[]>(
+    open?.entry.werewolfTargetIds ?? [],
+  );
+  const [team, setTeam] = useState<AfterlifeEntryCommand['team']>(
+    open?.entry.team ?? 'village',
+  );
+  const [wager, setWager] = useState(open?.entry.wager ?? 1);
+  const [entryConfirmed, setEntryConfirmed] = useState(false);
+  const [messageConfirmed, setMessageConfirmed] = useState(false);
+  const [newsOpen, setNewsOpen] = useState(false);
+  const messageCommandId = useRef(createCommandId());
+  const entryCommandId = useRef(createCommandId());
+  const canWrite =
+    network === 'connected' && privateFresh && !busy && Boolean(onMessage);
+  const targets = open
+    ? players.filter((player) => open.eligibleTargetIds.includes(player.id))
+    : [];
+
+  const changeEntry = () => {
+    entryCommandId.current = createCommandId();
+    setEntryConfirmed(false);
+  };
+
+  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onMessage || !messageText.trim()) return;
+    const confirmed = await onMessage({
+      commandId: messageCommandId.current,
+      expectedVersion,
+      text: messageText,
+    });
+    if (confirmed) {
+      setMessageText('');
+      setMessageConfirmed(true);
+      messageCommandId.current = createCommandId();
+    }
+  };
+
+  const submitEntry = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!open || !onEntry || !exileTargetId) return;
+    const confirmed = await onEntry(open.round, {
+      commandId: entryCommandId.current,
+      expectedVersion,
+      exileTargetId,
+      werewolfTargetIds,
+      team,
+      wager,
+    });
+    if (confirmed) {
+      setEntryConfirmed(true);
+      entryCommandId.current = createCommandId();
+    }
+  };
+
+  return (
+    <section className="afterlife-panel" aria-labelledby="afterlife-title">
+      {afterlife.entranceMessage ? (
+        <p className="afterlife-entrance" role="status" aria-live="polite">
+          {afterlife.entranceMessage}
+        </p>
+      ) : null}
+      <div className="afterlife-heading">
+        <div>
+          <p className="eyebrow">Vozes além da praça</p>
+          <h2 id="afterlife-title">Oráculo do Além</h2>
+        </div>
+        <strong>{afterlife.availablePoints} pontos</strong>
+      </div>
+
+      <div className="afterlife-news">
+        <button
+          className="text-button afterlife-news-toggle"
+          type="button"
+          aria-expanded={newsOpen}
+          aria-controls="afterlife-village-news"
+          onClick={() => setNewsOpen((current) => !current)}
+        >
+          {newsOpen ? 'Ocultar notícias da vila' : 'Ver notícias da vila'}
+        </button>
+        {newsOpen ? (
+          <section
+            id="afterlife-village-news"
+            aria-labelledby="afterlife-news-title"
+          >
+            <p className="eyebrow">
+              Rodada {round} · {phaseCopy[phase].eyebrow}
+            </p>
+            <h3 id="afterlife-news-title">{phaseCopy[phase].title}</h3>
+            {announcements.length ? (
+              <ul>
+                {announcements.map((announcement, index) => (
+                  <li key={`${index}-${announcement}`}>{announcement}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted-copy">Nenhuma nova notícia foi anunciada.</p>
+            )}
+          </section>
+        ) : null}
+      </div>
+
+      <div className="afterlife-grid">
+        <section
+          className="afterlife-chat"
+          aria-labelledby="afterlife-chat-title"
+        >
+          <h3 id="afterlife-chat-title">Chat dos mortos</h3>
+          {afterlife.messages.length ? (
+            <ol aria-live="polite">
+              {afterlife.messages.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.authorNickname}</strong>
+                  <p>{item.text}</p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="muted-copy">O silêncio ainda ronda este lugar.</p>
+          )}
+          <form onSubmit={(event) => void sendMessage(event)}>
+            <label htmlFor="afterlife-message">Mensagem aos mortos</label>
+            <textarea
+              id="afterlife-message"
+              maxLength={500}
+              value={messageText}
+              disabled={afterlife.state === 'finished' || !canWrite}
+              onChange={(event) => {
+                setMessageText(event.target.value);
+                setMessageConfirmed(false);
+                messageCommandId.current = createCommandId();
+              }}
+            />
+            <div className="afterlife-form-footer">
+              <small>{messageText.length}/500</small>
+              <button
+                className="secondary-button"
+                type="submit"
+                disabled={
+                  afterlife.state === 'finished' ||
+                  !canWrite ||
+                  !messageText.trim()
+                }
+              >
+                Enviar ao Além
+              </button>
+            </div>
+            {messageConfirmed ? (
+              <p role="status">Mensagem entregue aos mortos.</p>
+            ) : null}
+          </form>
+        </section>
+
+        <section
+          className="afterlife-prediction"
+          aria-labelledby="afterlife-prediction-title"
+        >
+          <h3 id="afterlife-prediction-title">Previsões da rodada</h3>
+          {afterlife.state === 'waiting' ? (
+            <p>Você poderá prever na próxima alvorada aplicável.</p>
+          ) : afterlife.state === 'closed' ? (
+            <p>As visões desta rodada foram seladas.</p>
+          ) : afterlife.state === 'finished' ? (
+            <p>A crônica terminou. Veja sua colocação no resultado final.</p>
+          ) : (
+            <form onSubmit={(event) => void submitEntry(event)}>
+              <fieldset className="afterlife-pick-group afterlife-exile-pick">
+                <legend>Quem será o próximo expulso?</legend>
+                {targets.map((player) => (
+                  <label className="afterlife-choice" key={player.id}>
+                    <input
+                      type="radio"
+                      name="afterlife-exile"
+                      value={player.id}
+                      checked={exileTargetId === player.id}
+                      onChange={() => {
+                        setExileTargetId(player.id);
+                        changeEntry();
+                      }}
+                    />
+                    {player.nickname}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="afterlife-pick-group afterlife-wolf-pick">
+                <legend>Quem você considera Lobisomem?</legend>
+                {targets.map((player) => (
+                  <label className="afterlife-choice" key={player.id}>
+                    <input
+                      type="checkbox"
+                      value={player.id}
+                      checked={werewolfTargetIds.includes(player.id)}
+                      onChange={() => {
+                        setWerewolfTargetIds((current) =>
+                          current.includes(player.id)
+                            ? current.filter((id) => id !== player.id)
+                            : [...current, player.id],
+                        );
+                        changeEntry();
+                      }}
+                    />
+                    {player.nickname}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="afterlife-wager">
+                <legend>Equipe vencedora</legend>
+                <div className="afterlife-team-options">
+                  {(
+                    [
+                      ['village', 'Cidade'],
+                      ['werewolves', 'Lobisomens'],
+                      ['lovers', 'Amantes'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <label className="afterlife-choice" key={value}>
+                      <input
+                        type="radio"
+                        name="afterlife-team"
+                        value={value}
+                        checked={team === value}
+                        onChange={() => {
+                          setTeam(value);
+                          changeEntry();
+                        }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <label
+                  className="afterlife-points-control"
+                  htmlFor="afterlife-wager"
+                >
+                  <span>Pontos apostados</span>
+                  <select
+                    id="afterlife-wager"
+                    value={wager}
+                    onChange={(event) => {
+                      setWager(Number(event.target.value));
+                      changeEntry();
+                    }}
+                  >
+                    {[1, 2, 3].map((value) => (
+                      <option value={value} key={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </fieldset>
+              <div className="afterlife-entry-actions">
+                <button
+                  className="primary-button"
+                  type="submit"
+                  disabled={
+                    !onEntry ||
+                    network !== 'connected' ||
+                    !privateFresh ||
+                    busy ||
+                    !exileTargetId ||
+                    wager > afterlife.availablePoints + (open?.entry.wager ?? 0)
+                  }
+                >
+                  Confirmar previsões
+                </button>
+                {entryConfirmed ? (
+                  <p role="status">Previsões confirmadas pelo servidor.</p>
+                ) : null}
+              </div>
+            </form>
+          )}
+        </section>
+      </div>
+    </section>
   );
 }
 
@@ -587,6 +926,10 @@ function FinalScreen({
   const self = snapshot.public.players.find(
     (player) => player.id === snapshot.private.playerId,
   );
+  const finalAfterlife =
+    snapshot.private.afterlife?.state === 'finished'
+      ? snapshot.private.afterlife
+      : null;
 
   return (
     <main className="app-shell final-shell" id="main-content">
@@ -618,6 +961,45 @@ function FinalScreen({
           </div>
         ) : null}
       </section>
+      {finalAfterlife ? (
+        <section
+          className="panel afterlife-final"
+          aria-labelledby="afterlife-final-title"
+        >
+          <p className="eyebrow">Vozes que atravessaram a noite</p>
+          <h2 id="afterlife-final-title">Oráculos do Além</h2>
+          <ol className="afterlife-ranking">
+            {finalAfterlife.ranking.map((entry) => (
+              <li
+                className={entry.oracle ? 'is-oracle' : ''}
+                key={entry.participantId}
+              >
+                <span>{entry.rank}º</span>
+                <strong>{entry.nickname}</strong>
+                <b>{entry.points} pontos</b>
+                {entry.oracle ? <small>Oráculo do Além</small> : null}
+              </li>
+            ))}
+          </ol>
+          <div className="afterlife-ledger">
+            <h3>Seu extrato do Além</h3>
+            <ul>
+              {finalAfterlife.ledger.map((entry) => (
+                <li key={entry.id}>
+                  <span>{afterlifeLedgerLabel(entry.reason)}</span>
+                  <strong>
+                    {entry.amount > 0 ? `+${entry.amount}` : entry.amount}
+                  </strong>
+                </li>
+              ))}
+            </ul>
+            <p>
+              Saldo final:{' '}
+              <strong>{finalAfterlife.availablePoints} pontos</strong>
+            </p>
+          </div>
+        </section>
+      ) : null}
       <section className="panel final-roles" aria-labelledby="roles-title">
         <p className="eyebrow">A verdade sob cada pele</p>
         <h2 id="roles-title">Papéis revelados</h2>
@@ -690,6 +1072,16 @@ function FinalScreen({
       </div>
     </main>
   );
+}
+
+function afterlifeLedgerLabel(reason: AfterlifeLedgerEntry['reason']): string {
+  const labels = {
+    initial: 'Entrada no Além',
+    'exile-prediction': 'Previsão de expulsão',
+    'werewolf-mark': 'Marcação de Lobisomem',
+    'team-wager': 'Aposta na equipe',
+  } as const;
+  return labels[reason];
 }
 
 function FinalEventItem({

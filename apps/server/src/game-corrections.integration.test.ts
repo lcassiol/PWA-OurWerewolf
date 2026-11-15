@@ -347,6 +347,356 @@ void test('an unprotected wolf target is dead and announced at dawn', () => {
     );
     assert.equal(dawn.public.announcements.length, 1);
     assert.match(dawn.public.announcements[0]!, new RegExp(victimName));
+    const victimAfterlife = service.project(victim.identity).private.afterlife;
+    assert.equal(victimAfterlife?.state, 'open');
+    assert.equal(victimAfterlife?.entranceMessage, null);
+    assert.equal(victimAfterlife?.availablePoints, 10);
+    assert.equal(service.project(wolf.identity).private.afterlife, null);
+    const initialPoints = database
+      .prepare(
+        `SELECT amount, data_json FROM afterlife_ledger
+         WHERE game_id = (SELECT id FROM games LIMIT 1)
+           AND participant_id = ? AND event_key = 'initial'`,
+      )
+      .get(victim.identity.participantId) as {
+      amount: number;
+      data_json: string;
+    };
+    assert.equal(initialPoints.amount, 10);
+    assert.deepEqual(JSON.parse(initialPoints.data_json), {
+      cause: 'wolf-attack',
+    });
+    const afterlifeRound = database
+      .prepare(
+        `SELECT r.round, r.closed_at, e.participant_id
+         FROM afterlife_rounds r JOIN afterlife_entries e ON e.round_id = r.id
+         WHERE r.game_id = (SELECT id FROM games LIMIT 1)`,
+      )
+      .get() as {
+      round: number;
+      closed_at: string | null;
+      participant_id: string;
+    };
+    assert.equal(afterlifeRound.round, 1);
+    assert.equal(afterlifeRound.closed_at, null);
+    assert.equal(afterlifeRound.participant_id, victim.identity.participantId);
+    expire(service, database);
+    assert.equal(
+      (
+        database
+          .prepare(
+            `SELECT count(*) AS count FROM afterlife_ledger
+             WHERE participant_id = ? AND event_key = 'initial'`,
+          )
+          .get(victim.identity.participantId) as { count: number }
+      ).count,
+      1,
+    );
+  } finally {
+    database.close();
+  }
+});
+
+void test('administrative removal does not create an afterlife balance', () => {
+  const database = new DatabaseSync(':memory:');
+  migrateUp(database);
+  const service = new GameService({
+    database,
+    domain: createDomainAdapter(),
+    logger: createLogger(() => undefined),
+    sessionSecret: 'test-secret-that-is-at-least-32-characters',
+    sessionTtlSeconds: 3_600,
+  });
+  try {
+    const host = service.createRoom('Host');
+    const guest = service.joinRoom(host.identity.roomCode, 'Guest');
+    service.removeParticipant(host.identity, guest.identity.participantId);
+    assert.equal(
+      (
+        database
+          .prepare('SELECT count(*) AS count FROM afterlife_ledger')
+          .get() as { count: number }
+      ).count,
+      0,
+    );
+  } finally {
+    database.close();
+  }
+});
+
+void test('afterlife entries replace choices atomically and reserve points', () => {
+  const { database, service, members } = fixture([]);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const dead = byRole(service, members, 'villager', 0);
+    submit(service, wolf, 'wolf-vote', [dead.identity.participantId]);
+    const living = service
+      .project(dead.identity)
+      .public.players.filter((player) => player.alive);
+    const first = {
+      commandId: 'afterlife-entry-first',
+      expectedVersion: service.project(dead.identity).public.version,
+      exileTargetId: living[0]!.id,
+      werewolfTargetIds: [living[1]!.id],
+      team: 'village',
+      wager: 2,
+    } as const;
+    const accepted = service.replaceAfterlifeEntry(dead.identity, 1, first);
+    assert.equal(accepted.duplicate, false);
+    assert.equal(accepted.snapshot.private.afterlife?.availablePoints, 8);
+    assert.equal(accepted.snapshot.private.afterlife?.state, 'open');
+    if (accepted.snapshot.private.afterlife?.state === 'open') {
+      assert.equal(
+        accepted.snapshot.private.afterlife.entry.exileTargetId,
+        living[0]!.id,
+      );
+    }
+    const messageVersion = service.project(dead.identity).public.version;
+    const message = {
+      commandId: 'afterlife-message-first',
+      expectedVersion: messageVersion,
+      text: '  Ainda estou observando.  ',
+    };
+    const sent = service.sendAfterlifeMessage(dead.identity, message);
+    assert.equal(sent.duplicate, false);
+    assert.equal(
+      sent.snapshot.private.afterlife?.messages[0]?.text,
+      'Ainda estou observando.',
+    );
+    assert.equal(
+      service.sendAfterlifeMessage(dead.identity, message).duplicate,
+      true,
+    );
+    assert.equal(
+      (
+        database
+          .prepare('SELECT count(*) AS count FROM afterlife_messages')
+          .get() as { count: number }
+      ).count,
+      1,
+    );
+    assert.throws(
+      () =>
+        service.sendAfterlifeMessage(wolf.identity, {
+          commandId: 'afterlife-message-living',
+          expectedVersion: service.project(wolf.identity).public.version,
+          text: 'Not allowed',
+        }),
+      /Only eliminated players/,
+    );
+    assert.throws(
+      () =>
+        service.sendAfterlifeMessage(dead.identity, {
+          commandId: 'afterlife-message-empty',
+          expectedVersion: service.project(dead.identity).public.version,
+          text: '   ',
+        }),
+      /1 to 500 characters/,
+    );
+    assert.equal(
+      service.replaceAfterlifeEntry(dead.identity, 1, first).duplicate,
+      true,
+    );
+    const stored = database
+      .prepare(
+        `SELECT exile_target_id, werewolf_targets_json, team, wager
+         FROM afterlife_entries WHERE participant_id = ?`,
+      )
+      .get(dead.identity.participantId) as {
+      exile_target_id: string;
+      werewolf_targets_json: string;
+      team: string;
+      wager: number;
+    };
+    assert.equal(stored.exile_target_id, living[0]!.id);
+    assert.deepEqual(JSON.parse(stored.werewolf_targets_json), [living[1]!.id]);
+    assert.equal(stored.team, 'village');
+    assert.equal(stored.wager, 2);
+
+    assert.throws(
+      () =>
+        service.replaceAfterlifeEntry(dead.identity, 1, {
+          ...first,
+          commandId: 'afterlife-entry-duplicate-target',
+          expectedVersion: service.project(dead.identity).public.version,
+          werewolfTargetIds: [living[0]!.id, living[0]!.id],
+        }),
+      /Invalid werewolf targets/,
+    );
+    assert.throws(
+      () =>
+        service.replaceAfterlifeEntry(dead.identity, 1, {
+          ...first,
+          commandId: 'afterlife-entry-dead-target',
+          expectedVersion: service.project(dead.identity).public.version,
+          exileTargetId: dead.identity.participantId,
+        }),
+      /must target living players/,
+    );
+
+    database
+      .prepare(
+        "UPDATE afterlife_ledger SET amount = 2 WHERE participant_id = ? AND event_key = 'initial'",
+      )
+      .run(dead.identity.participantId);
+    assert.throws(
+      () =>
+        service.replaceAfterlifeEntry(dead.identity, 1, {
+          ...first,
+          commandId: 'afterlife-entry-no-balance',
+          expectedVersion: service.project(dead.identity).public.version,
+          wager: 3,
+        }),
+      /Not enough afterlife points/,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            'SELECT wager FROM afterlife_entries WHERE participant_id = ?',
+          )
+          .get(dead.identity.participantId) as { wager: number }
+      ).wager,
+      2,
+    );
+  } finally {
+    database.close();
+  }
+});
+
+void test('afterlife settlement scores marks, wagers, floor, ranking, and ties once', () => {
+  const { database, service, members } = fixture([]);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const firstDead = byRole(service, members, 'villager', 0);
+    submit(service, wolf, 'wolf-vote', [firstDead.identity.participantId]);
+    const nonWolves = members.filter(
+      (member) =>
+        service.project(member.identity).private.role !== 'werewolf' &&
+        member !== firstDead,
+    );
+    const innocent = nonWolves[0]!;
+    service.replaceAfterlifeEntry(firstDead.identity, 1, {
+      commandId: 'afterlife-final-first',
+      expectedVersion: service.project(firstDead.identity).public.version,
+      exileTargetId: innocent.identity.participantId,
+      werewolfTargetIds: [
+        wolf.identity.participantId,
+        innocent.identity.participantId,
+      ],
+      team: 'werewolves',
+      wager: 2,
+    });
+    const gameId = (
+      database.prepare('SELECT id FROM games LIMIT 1').get() as { id: string }
+    ).id;
+    const roundId = (
+      database
+        .prepare(
+          'SELECT id FROM afterlife_rounds WHERE game_id = ? AND round = 1',
+        )
+        .get(gameId) as { id: string }
+    ).id;
+    const tied = nonWolves[1]!;
+    const floored = nonWolves[2]!;
+    database
+      .prepare(
+        `INSERT INTO afterlife_ledger
+          (id, game_id, participant_id, round, reason, event_key, amount, created_at)
+         VALUES (?, ?, ?, 1, 'initial', 'initial', ?, '2026-01-01')`,
+      )
+      .run('tied-initial', gameId, tied.identity.participantId, 10);
+    database
+      .prepare(
+        `INSERT INTO afterlife_ledger
+          (id, game_id, participant_id, round, reason, event_key, amount, created_at)
+         VALUES (?, ?, ?, 1, 'initial', 'initial', ?, '2026-01-01')`,
+      )
+      .run('floored-initial', gameId, floored.identity.participantId, 1);
+    const insertEntry = database.prepare(
+      `INSERT INTO afterlife_entries
+        (round_id, participant_id, exile_target_id, werewolf_targets_json, team, wager, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, '2026-01-01')`,
+    );
+    insertEntry.run(
+      roundId,
+      tied.identity.participantId,
+      innocent.identity.participantId,
+      JSON.stringify([
+        wolf.identity.participantId,
+        innocent.identity.participantId,
+      ]),
+      'werewolves',
+      2,
+    );
+    insertEntry.run(
+      roundId,
+      floored.identity.participantId,
+      innocent.identity.participantId,
+      JSON.stringify(
+        nonWolves.slice(0, 3).map((member) => member.identity.participantId),
+      ),
+      'village',
+      3,
+    );
+    const survivor = nonWolves.find(
+      (member) => member !== tied && member !== floored,
+    )!;
+    database
+      .prepare(
+        'UPDATE assignments SET alive = CASE WHEN participant_id IN (?, ?) THEN 1 ELSE 0 END WHERE game_id = ?',
+      )
+      .run(
+        wolf.identity.participantId,
+        survivor.identity.participantId,
+        gameId,
+      );
+
+    expire(service, database);
+    const final = service.project(firstDead.identity).private.afterlife;
+    assert.equal(final?.state, 'finished');
+    if (final?.state !== 'finished') throw new Error('missing final afterlife');
+    assert.equal(final.availablePoints, 12);
+    assert.deepEqual(
+      final.ranking.map(({ points, rank, oracle }) => ({
+        points,
+        rank,
+        oracle,
+      })),
+      [
+        { points: 12, rank: 1, oracle: true },
+        { points: 12, rank: 1, oracle: true },
+        { points: 0, rank: 3, oracle: false },
+      ],
+    );
+    assert.equal(final.oracleIds.length, 2);
+    assert.throws(
+      () =>
+        service.sendAfterlifeMessage(firstDead.identity, {
+          commandId: 'afterlife-message-finished',
+          expectedVersion: service.project(firstDead.identity).public.version,
+          text: 'Too late',
+        }),
+      /game is finished/i,
+    );
+    const settledCount = (
+      database
+        .prepare(
+          "SELECT count(*) AS count FROM afterlife_ledger WHERE reason IN ('werewolf-mark', 'team-wager')",
+        )
+        .get() as { count: number }
+    ).count;
+    assert.equal(service.runDuePhases(), 0);
+    assert.equal(
+      (
+        database
+          .prepare(
+            "SELECT count(*) AS count FROM afterlife_ledger WHERE reason IN ('werewolf-mark', 'team-wager')",
+          )
+          .get() as { count: number }
+      ).count,
+      settledCount,
+    );
   } finally {
     database.close();
   }
@@ -450,9 +800,26 @@ void test('Hunter resumes dawn after a night death and night after a day death',
       day.service.project(hunter.identity).public.phase,
       'day-resolution',
     );
-    for (const member of day.members)
-      day.service.acknowledgeDayResolution(member.identity, 1);
+    for (const member of day.members) {
+      const self = day.service
+        .project(member.identity)
+        .public.players.find(
+          (player) => player.id === member.identity.participantId,
+        );
+      if (self?.alive) day.service.acknowledgeDayResolution(member.identity, 1);
+    }
     assert.equal(day.service.project(hunter.identity).public.phase, 'night');
+    submit(day.service, wolf, 'wolf-vote', []);
+    assert.equal(day.service.project(hunter.identity).public.phase, 'dawn');
+    assert.ok(
+      day.database
+        .prepare(
+          `SELECT 1 FROM afterlife_entries e
+           JOIN afterlife_rounds r ON r.id = e.round_id
+           WHERE r.round = 2 AND e.participant_id = ?`,
+        )
+        .get(hunter.identity.participantId),
+    );
   } finally {
     day.database.close();
   }
@@ -478,6 +845,32 @@ void test('day votes resolve when voting closes and results are visible in day-r
       ),
     );
     assert.equal(effectCount(database, 'day-vote-result'), 1);
+    assert.ok(
+      (
+        database
+          .prepare(
+            'SELECT closed_at, settled_at FROM afterlife_rounds WHERE round = 1',
+          )
+          .get() as { closed_at: string | null; settled_at: string | null }
+      ).closed_at,
+    );
+    assert.ok(
+      (
+        database
+          .prepare('SELECT settled_at FROM afterlife_rounds WHERE round = 1')
+          .get() as { settled_at: string | null }
+      ).settled_at,
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            "SELECT count(*) AS count FROM afterlife_ledger WHERE reason = 'exile-prediction'",
+          )
+          .get() as { count: number }
+      ).count,
+      0,
+    );
   } finally {
     database.close();
   }
@@ -500,6 +893,14 @@ void test('an exile is announced only once in day-resolution', () => {
     assert.ok(nightAnnouncement);
     assert.ok(nightAnnouncement.includes(nightVictimName));
     expire(service, database);
+    service.replaceAfterlifeEntry(nightVictim.identity, 1, {
+      commandId: 'afterlife-correct-exile',
+      expectedVersion: service.project(nightVictim.identity).public.version,
+      exileTargetId: target.identity.participantId,
+      werewolfTargetIds: [],
+      team: 'village',
+      wager: 1,
+    });
     expire(service, database);
     for (const member of members) {
       if (member === nightVictim) continue;
@@ -523,6 +924,35 @@ void test('an exile is announced only once in day-resolution', () => {
       !resolution.public.announcements.includes(`${targetName} foi eliminado.`),
     );
     assert.ok(!resolution.public.announcements.includes(nightAnnouncement));
+    assert.equal(
+      resolution.private.afterlife?.entranceMessage,
+      'A vila encerrou sua jornada, mas seu espírito continua observando. Faça suas previsões e dispute o título de Oráculo do Além.',
+    );
+    assert.equal(resolution.private.afterlife?.state, 'waiting');
+    const livingView = members.find(
+      (member) =>
+        resolution.public.players.find(
+          (player) => player.id === member.identity.participantId,
+        )?.alive,
+    )!;
+    assert.equal(service.project(livingView.identity).private.afterlife, null);
+    const predictionCredit = database
+      .prepare(
+        `SELECT amount FROM afterlife_ledger
+         WHERE participant_id = ? AND reason = 'exile-prediction'`,
+      )
+      .get(nightVictim.identity.participantId) as { amount: number };
+    assert.equal(predictionCredit.amount, 3);
+    assert.equal(
+      database
+        .prepare(
+          `SELECT 1 FROM afterlife_entries e
+           JOIN afterlife_rounds r ON r.id = e.round_id
+           WHERE r.round = 1 AND e.participant_id = ?`,
+        )
+        .get(target.identity.participantId),
+      undefined,
+    );
   } finally {
     database.close();
   }

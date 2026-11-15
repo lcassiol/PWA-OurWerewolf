@@ -77,25 +77,46 @@ curl -fsS -b /tmp/werewolf-player.cookies \
 
 ## Endpoints
 
-| Method and path                        | Authentication      | Purpose                                             |
-| -------------------------------------- | ------------------- | --------------------------------------------------- |
-| `GET /health`                          | none                | readiness and database check                        |
-| `GET /metrics`                         | none                | secret-free process counters                        |
-| `GET /session`                         | cookie              | restore the current anonymous room session          |
-| `POST /rooms`                          | none, rate limited  | create room and host session                        |
-| `POST /rooms/:code/join`               | none, rate limited  | join a lobby and issue session                      |
-| `POST /rooms/:code/reconnect`          | cookie              | rotate session and return fresh snapshot            |
-| `POST /rooms/:code/return`             | cookie              | reopen a finished room or return the guest home     |
-| `DELETE /rooms/:code/session`          | cookie              | leave lobby; a host closes the lobby                |
-| `GET /rooms/:code/snapshot`            | cookie              | recipient-filtered current state                    |
-| `PATCH /rooms/:code/settings`          | host cookie         | update lobby settings                               |
-| `PATCH /rooms/:code/avatar`            | cookie              | choose the authenticated participant's avatar       |
-| `PATCH /rooms/:code/ready`             | cookie              | set `{ "ready": boolean }`                          |
-| `DELETE /rooms/:code/participants/:id` | self or host cookie | remove lobby participant and invalidate its session |
-| `POST /rooms/:code/start`              | host cookie         | atomically freeze and start valid lobby             |
-| `POST /rooms/:code/commands`           | cookie              | idempotent game action                              |
+| Method and path                                  | Authentication             | Purpose                                             |
+| ------------------------------------------------ | -------------------------- | --------------------------------------------------- |
+| `GET /health`                                    | none                       | readiness and database check                        |
+| `GET /metrics`                                   | none                       | secret-free process counters                        |
+| `GET /session`                                   | cookie                     | restore the current anonymous room session          |
+| `POST /rooms`                                    | none, rate limited         | create room and host session                        |
+| `POST /rooms/:code/join`                         | none, rate limited         | join a lobby and issue session                      |
+| `POST /rooms/:code/reconnect`                    | cookie                     | rotate session and return fresh snapshot            |
+| `POST /rooms/:code/return`                       | cookie                     | reopen a finished room or return the guest home     |
+| `DELETE /rooms/:code/session`                    | cookie                     | leave lobby; a host closes the lobby                |
+| `GET /rooms/:code/snapshot`                      | cookie                     | recipient-filtered current state                    |
+| `PATCH /rooms/:code/settings`                    | host cookie                | update lobby settings                               |
+| `PATCH /rooms/:code/avatar`                      | cookie                     | choose the authenticated participant's avatar       |
+| `PATCH /rooms/:code/ready`                       | cookie                     | set `{ "ready": boolean }`                          |
+| `DELETE /rooms/:code/participants/:id`           | self or host cookie        | remove lobby participant and invalidate its session |
+| `POST /rooms/:code/start`                        | host cookie                | atomically freeze and start valid lobby             |
+| `POST /rooms/:code/commands`                     | cookie                     | idempotent game action                              |
+| `POST /rooms/:code/afterlife/messages`           | eliminated cookie          | idempotent afterlife chat message                   |
+| `PUT /rooms/:code/afterlife/rounds/:round/entry` | eligible eliminated cookie | replace that round's predictions and wager          |
 
-Errors have `{ "error": { "code", "message", "details"? } }`. Relevant statuses are 400, 401, 403, 404, 409, 413, and 429. A 429 includes `Retry-After`. A stale or closed-phase command is never applied. Its 409 response also contains a recipient-authorized `snapshot` when the session and room remain valid, so the client can recover without a second request.
+After an elimination, `snapshot.private.afterlife` is the authority for access and current state. Living players receive `null`. An open activity advertises `round`, the authenticated participant's current `entry`, and `eligibleTargetIds`; clients must not infer access from public death state alone.
+
+Afterlife writes use the same stable command-id and expected-version recovery rules as game commands:
+
+```sh
+curl -fsS -b /tmp/werewolf-player.cookies \
+  -H "Origin: $ORIGIN" -H 'Content-Type: application/json' \
+  -d '{"commandId":"afterlife-message-0001","expectedVersion":12,"text":"Ainda estou observando."}' \
+  "$API/rooms/$CODE/afterlife/messages"
+
+curl -fsS -b /tmp/werewolf-player.cookies \
+  -H "Origin: $ORIGIN" -H 'Content-Type: application/json' \
+  -X PUT \
+  -d '{"commandId":"afterlife-entry-0001","expectedVersion":13,"exileTargetId":"participant-uuid","werewolfTargetIds":["suspect-uuid"],"team":"village","wager":2}' \
+  "$API/rooms/$CODE/afterlife/rounds/2/entry"
+```
+
+Messages are NFKC-normalized, trimmed, and limited to 1-500 characters. An entry requires one living exile target, unique living werewolf suspects, `village`, `werewolves`, or `lovers` as the predicted winner, and an integer wager from 1-3 backed by available points. The server replaces the complete entry atomically while the round is open. Chat becomes read-only when the game finishes.
+
+Errors have `{ "error": { "code", "message", "details"? } }`. Relevant statuses are 400, 401, 403, 404, 409, 413, and 429. A 429 includes `Retry-After`. A stale or closed-phase command is never applied. Its 409 response also contains a recipient-authorized `snapshot` when the session and room remain valid, so the client can recover without a second request. Reusing a successful afterlife `commandId` returns `duplicate: true` and never duplicates a message, reservation, or score event.
 
 Rooms expire at their persisted `expires_at`. Join and authentication close an expired room, invalidate its participant sessions, and return the same not-found or unauthorized result used for any unavailable room.
 

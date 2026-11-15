@@ -92,6 +92,7 @@ export function makeSnapshot(
       readyForVote: false,
       acknowledgedDayResolution: false,
       personalWinner: false,
+      afterlife: null,
     },
     host: {
       canConfigure: true,

@@ -581,6 +581,7 @@ void test('health, room lifecycle, atomic start, projections, idempotency, and d
 void test('six clients complete a night, vote, victory, and final reveal', async () => {
   const application = await start();
   let hostSocket: WebSocket | undefined;
+  let deadSocket: WebSocket | undefined;
   try {
     const host = await createRoom(application);
     hostSocket = await connectMember(application, host);
@@ -643,6 +644,130 @@ void test('six clients complete a night, vote, victory, and final reveal', async
       (await getSnapshot(application, code, host)).public.phase,
       'dawn',
     );
+    const secondDead = assigned.find(
+      ({ snapshot }) =>
+        snapshot.private.role !== 'werewolf' &&
+        snapshot.private.playerId !== victim.snapshot.private.playerId,
+    );
+    assert.ok(secondDead);
+    const gameId = (
+      application.database.prepare('SELECT id FROM games LIMIT 1').get() as {
+        id: string;
+      }
+    ).id;
+    application.database
+      .prepare(
+        'UPDATE assignments SET alive = 0 WHERE game_id = ? AND participant_id = ?',
+      )
+      .run(gameId, secondDead.snapshot.private.playerId);
+    application.database
+      .prepare(
+        `INSERT INTO afterlife_ledger
+          (id, game_id, participant_id, round, reason, event_key, amount, created_at)
+         VALUES ('http-second-dead', ?, ?, 1, 'initial', 'initial', 10, '2026-01-01')`,
+      )
+      .run(gameId, secondDead.snapshot.private.playerId);
+    deadSocket = await connectMember(application, secondDead.member);
+    const broadcast = new Promise<GameSnapshot>((resolve) => {
+      deadSocket!.once('message', (data: RawData) => {
+        const event = JSON.parse(wsText(data)) as {
+          type: string;
+          snapshot: GameSnapshot;
+        };
+        resolve(event.snapshot);
+      });
+    });
+    const deadView = await getSnapshot(application, code, victim.member);
+    const message = {
+      commandId: 'http-afterlife-message',
+      expectedVersion: deadView.public.version,
+      text: 'Mensagem entre espíritos',
+    };
+    const sentMessage = await request(
+      application,
+      `/rooms/${code}/afterlife/messages`,
+      {
+        method: 'POST',
+        headers: { cookie: victim.member.cookie },
+        body: JSON.stringify(message),
+      },
+    );
+    assert.equal(sentMessage.status, 200);
+    const sentBody = await json<{
+      duplicate: boolean;
+      snapshot: GameSnapshot;
+    }>(sentMessage);
+    assert.equal(sentBody.duplicate, false);
+    assert.equal(
+      sentBody.snapshot.private.afterlife?.messages[0]?.text,
+      message.text,
+    );
+    assert.equal(
+      (await broadcast).private.afterlife?.messages[0]?.text,
+      message.text,
+    );
+    const repeatedMessage = await request(
+      application,
+      `/rooms/${code}/afterlife/messages`,
+      {
+        method: 'POST',
+        headers: { cookie: victim.member.cookie },
+        body: JSON.stringify(message),
+      },
+    );
+    assert.equal(
+      (await json<{ duplicate: boolean }>(repeatedMessage)).duplicate,
+      true,
+    );
+    const predictionTarget = sentBody.snapshot.public.players.find(
+      ({ alive }) => alive,
+    )!;
+    const entry = await request(
+      application,
+      `/rooms/${code}/afterlife/rounds/1/entry`,
+      {
+        method: 'PUT',
+        headers: { cookie: victim.member.cookie },
+        body: JSON.stringify({
+          commandId: 'http-afterlife-entry',
+          expectedVersion: sentBody.snapshot.public.version,
+          exileTargetId: predictionTarget.id,
+          werewolfTargetIds: [],
+          team: 'village',
+          wager: 1,
+        }),
+      },
+    );
+    assert.equal(entry.status, 200);
+    const staleMessage = await request(
+      application,
+      `/rooms/${code}/afterlife/messages`,
+      {
+        method: 'POST',
+        headers: { cookie: victim.member.cookie },
+        body: JSON.stringify({
+          ...message,
+          commandId: 'http-afterlife-stale',
+        }),
+      },
+    );
+    assert.equal(staleMessage.status, 409);
+    const staleMessageBody = await json<{
+      error: { code: string };
+      snapshot: GameSnapshot;
+    }>(staleMessage);
+    assert.equal(staleMessageBody.error.code, 'stale_command');
+    assert.ok(staleMessageBody.snapshot.private.afterlife);
+    const preflight = await request(
+      application,
+      `/rooms/${code}/afterlife/rounds/1/entry`,
+      { method: 'OPTIONS' },
+    );
+    assert.equal(preflight.status, 204);
+    assert.match(
+      preflight.headers.get('access-control-allow-methods') ?? '',
+      /PUT/,
+    );
     for (const expectedPhase of ['discussion', 'voting'] as const) {
       expireOpenPhase(application);
       assert.equal(application.service.runDuePhases(), 1);
@@ -702,6 +827,7 @@ void test('six clients complete a night, vote, victory, and final reveal', async
     );
   } finally {
     hostSocket?.terminate();
+    deadSocket?.terminate();
     await stop(application);
   }
 });

@@ -7,6 +7,7 @@ import { finalTimelineMigration } from './migrations/004_final_timeline.js';
 import { participantAvatarsMigration } from './migrations/005_participant_avatars.js';
 import { roomThemesMigration } from './migrations/006_room_themes.js';
 import { alphaWolfMigration } from './migrations/007_alpha_wolf.js';
+import { afterlifeEngagementMigration } from './migrations/008_afterlife_engagement.js';
 import { openDatabase } from './open.js';
 
 const migrations = [
@@ -17,6 +18,7 @@ const migrations = [
   participantAvatarsMigration,
   roomThemesMigration,
   alphaWolfMigration,
+  afterlifeEngagementMigration,
 ] as const;
 
 type Migration = (typeof migrations)[number];

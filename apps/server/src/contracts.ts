@@ -1,6 +1,14 @@
 export { avatarIds, knowledgeFacts, themeIds } from '@our-werewolf/shared';
 export type {
   ActionChoice,
+  AfterlifeEntry,
+  AfterlifeEntryCommand,
+  AfterlifeLedgerEntry,
+  AfterlifeMessage,
+  AfterlifeMessageCommand,
+  AfterlifeRankingEntry,
+  AfterlifeSnapshot,
+  AfterlifeTeam,
   Alignment,
   ApiError,
   ApiErrorCode,

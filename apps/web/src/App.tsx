@@ -1,4 +1,6 @@
 import type {
+  AfterlifeEntryCommand,
+  AfterlifeMessageCommand,
   AvatarId,
   GameCommand,
   GameSnapshot,
@@ -166,6 +168,34 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
     }
   };
 
+  const sendAfterlife = async (
+    operation: (roomCode: string) => Promise<GameSnapshot>,
+  ): Promise<boolean> => {
+    if (!snapshot || realtime.network !== 'connected') return false;
+    setBusy(true);
+    setMessage(null);
+    try {
+      applySnapshot(await operation(snapshot.public.roomCode));
+      return true;
+    } catch (error) {
+      await recoverRejectedCommand(
+        error,
+        () => apiClient.getSnapshot(snapshot.public.roomCode),
+        applySnapshot,
+        clearInvalidSession,
+      );
+      if (!isSessionInvalid(error))
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : 'A decisão do Além não foi confirmada. Tente novamente.',
+        );
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const leave = async () => {
     if (!snapshot) return;
     setBusy(true);
@@ -278,11 +308,16 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         busy={busy}
         message={message}
         onCommand={sendCommand}
-        onReadyForVote={() =>
-          run(
-            () => apiClient.markReadyForVote(snapshot.public.roomCode),
-            'Você está pronto para votar.',
+        onAfterlifeMessage={(command: AfterlifeMessageCommand) =>
+          sendAfterlife((code) => apiClient.sendAfterlifeMessage(code, command))
+        }
+        onAfterlifeEntry={(round: number, command: AfterlifeEntryCommand) =>
+          sendAfterlife((code) =>
+            apiClient.replaceAfterlifeEntry(code, round, command),
           )
+        }
+        onReadyForVote={() =>
+          run(() => apiClient.markReadyForVote(snapshot.public.roomCode))
         }
         onAcknowledgeDayResolution={() =>
           run(() =>
