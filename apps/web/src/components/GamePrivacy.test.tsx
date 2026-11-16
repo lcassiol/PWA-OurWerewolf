@@ -76,6 +76,40 @@ describe('carta secreta', () => {
     ).toBeInTheDocument();
   });
 
+  it('recolhe a carta inteira e exige nova revelação ao abrir novamente', async () => {
+    const user = userEvent.setup();
+    render(
+      <SecretRoleCard
+        privateState={privateState}
+        players={makeSnapshot().public.players}
+        canReveal
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Revelar minha carta' }),
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Vidente' }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Esconder carta' }));
+    expect(
+      screen.getByRole('button', { name: 'Ver minha carta' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByLabelText('Sua carta secreta')).toHaveClass(
+      'is-mobile-collapsed',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Ver minha carta' }));
+    expect(
+      screen.getByRole('button', { name: 'Revelar minha carta' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Vidente' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('recobre imediatamente ao perder autorização de rede', async () => {
     const user = userEvent.setup();
     const { rerender } = render(
@@ -176,7 +210,8 @@ describe('fases e decisões', () => {
     host: null,
   });
 
-  it('exibe de forma conclusiva um amanhecer sem mortes', () => {
+  it('exibe de forma conclusiva um amanhecer sem mortes e recolhe os jogadores', async () => {
+    const user = userEvent.setup();
     render(
       <GameScreen
         snapshot={makeSnapshot({
@@ -207,6 +242,21 @@ describe('fases e decisões', () => {
     expect(
       screen.queryByText('O servidor está preparando o anúncio.'),
     ).not.toBeInTheDocument();
+    const playersButton = screen.getByRole('button', {
+      name: 'Ver jogadores',
+    });
+    expect(playersButton).toHaveAttribute('aria-expanded', 'false');
+    expect(document.querySelector('#village-player-list')).toHaveClass(
+      'is-mobile-collapsed',
+    );
+
+    await user.click(playersButton);
+    expect(
+      screen.getByRole('button', { name: 'Ocultar jogadores' }),
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(document.querySelector('#village-player-list')).not.toHaveClass(
+      'is-mobile-collapsed',
+    );
   });
 
   it('aguarda o OK de todos no resumo do dia, inclusive de eliminados', async () => {
@@ -241,10 +291,14 @@ describe('fases e decisões', () => {
       onReturn: vi.fn(),
       onInstall: vi.fn(),
     };
-    const { rerender } = render(
+    const { container, rerender } = render(
       <GameScreen snapshot={dayResolution} {...props} />,
     );
 
+    expect(container.querySelector('.phase-orbit')).not.toBeInTheDocument();
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sem prazo')).not.toBeInTheDocument();
+    expect(screen.queryByText('aguarde o servidor')).not.toBeInTheDocument();
     expect(screen.getByText('0 de 6 confirmaram')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'OK, continuar' }));
     expect(onAcknowledge).toHaveBeenCalledOnce();

@@ -1553,6 +1553,10 @@ input::placeholder {
   font-size: 0.72rem;
 }
 
+.mobile-disclosure {
+  display: none;
+}
+
 .phase-hero {
   position: relative;
   display: grid;
@@ -1668,6 +1672,10 @@ input::placeholder {
   border-radius: 7px;
   background: #191510;
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.4);
+}
+
+.secret-card__body {
+  min-height: inherit;
 }
 
 .secret-card::before,
@@ -2361,6 +2369,13 @@ input::placeholder {
   padding: 1.5rem 0.25rem;
 }
 
+.village-strip__header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 .village-strip h2 {
   margin-bottom: 0.8rem;
   color: var(--paper-muted);
@@ -2416,6 +2431,74 @@ input::placeholder {
 .village-strip li.is-eliminated {
   opacity: 0.48;
   text-decoration: line-through;
+}
+
+@media (max-width: 819px) {
+  .mobile-disclosure {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 0.9rem;
+    color: var(--paper);
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    background: rgba(210, 168, 94, 0.07);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .mobile-disclosure > span:last-child {
+    color: var(--amber-light);
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .secret-card__toggle {
+    position: relative;
+    z-index: 2;
+    border: 0;
+    border-bottom: 1px solid var(--line-strong);
+    border-radius: 0;
+    background: rgba(0, 0, 0, 0.22);
+  }
+
+  .secret-card.is-mobile-collapsed {
+    min-height: 48px;
+  }
+
+  .secret-card.is-mobile-collapsed::before,
+  .secret-card.is-mobile-collapsed::after,
+  .secret-card__body.is-mobile-collapsed,
+  .village-strip ul.is-mobile-collapsed {
+    display: none;
+  }
+
+  .phase-hero--day-resolution {
+    min-height: 230px;
+    padding-top: 1rem;
+  }
+
+  .village-strip {
+    padding: 0.5rem 0.25rem 1rem;
+  }
+
+  .village-strip__header {
+    display: grid;
+  }
+
+  .village-strip h2 {
+    margin: 0;
+    text-align: center;
+  }
+
+  .village-strip ul {
+    padding-top: 1rem;
+  }
 }
 
 .in-game-footer {

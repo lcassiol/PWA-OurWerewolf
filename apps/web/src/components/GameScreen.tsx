@@ -96,29 +96,29 @@ export function GameScreen({
         className={`phase-hero phase-hero--${currentPhase}`}
         aria-labelledby="phase-title"
       >
-        <div className="phase-orbit" aria-hidden="true">
-          <span />
-        </div>
+        {currentPhase !== 'day-resolution' ? (
+          <div className="phase-orbit" aria-hidden="true">
+            <span />
+          </div>
+        ) : null}
         <p className="eyebrow">
           {phase.eyebrow} · Rodada {publicState.round}
         </p>
         <h1 id="phase-title">{phase.title}</h1>
         <p>{phase.instruction}</p>
-        <div
-          className="countdown"
-          role="timer"
-          aria-live="off"
-          aria-label={`Tempo restante: ${formatCountdown(remaining)}`}
-        >
-          <span aria-hidden="true">{formatCountdown(remaining)}</span>
-          <small>
-            {remaining === null
-              ? 'aguarde o servidor'
-              : remaining === 0
-                ? 'encerrando fase'
-                : 'tempo restante'}
-          </small>
-        </div>
+        {remaining !== null ? (
+          <div
+            className="countdown"
+            role="timer"
+            aria-live="off"
+            aria-label={`Tempo restante: ${formatCountdown(remaining)}`}
+          >
+            <span aria-hidden="true">{formatCountdown(remaining)}</span>
+            <small>
+              {remaining === 0 ? 'encerrando fase' : 'tempo restante'}
+            </small>
+          </div>
+        ) : null}
       </section>
 
       {!afterlife ? (
@@ -865,10 +865,27 @@ function AliveList({
   disabled: boolean;
   onAvatarChange: (avatarId: AvatarId) => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
     <section className="village-strip" aria-labelledby="village-title">
-      <h2 id="village-title">Quem ainda está na crônica</h2>
-      <ul>
+      <div className="village-strip__header">
+        <h2 id="village-title">Quem está no jogo</h2>
+        <button
+          className="mobile-disclosure"
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="village-player-list"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <span>{expanded ? 'Ocultar jogadores' : 'Ver jogadores'}</span>
+          <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+        </button>
+      </div>
+      <ul
+        className={expanded ? '' : 'is-mobile-collapsed'}
+        id="village-player-list"
+      >
         {players.map((player) => (
           <li className={!player.alive ? 'is-eliminated' : ''} key={player.id}>
             {player.id === selfId ? (

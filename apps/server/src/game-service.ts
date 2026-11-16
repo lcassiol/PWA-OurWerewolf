@@ -797,7 +797,13 @@ export class GameService {
         throw new HttpError(409, 'conflict', 'The room is not ready to start', {
           blockers: blockers.join(', '),
         });
-      const settings = settingsFromRoom(room);
+      const savedSettings = settingsFromRoom(room);
+      const settings = savedSettings.hideSpecialRoles
+        ? {
+            ...savedSettings,
+            specialRoles: this.domain.suggestSpecialRoles(participants.length),
+          }
+        : savedSettings;
       const composition = this.domain.validateComposition(
         participants.length,
         settings.specialRoles,
@@ -1526,7 +1532,7 @@ export class GameService {
         nickname:
           participants.find(
             (participant) => participant.id === item.participant_id,
-          )?.nickname ?? 'Unknown',
+          )?.nickname ?? 'Desconhecido',
         role: item.role,
         winner: winners.has(item.participant_id),
       }));
@@ -1774,7 +1780,7 @@ export class GameService {
         nickname:
           participants.find(
             (participant) => participant.id === score.participant_id,
-          )?.nickname ?? 'Unknown',
+          )?.nickname ?? 'Desconhecido',
         points: Math.max(0, score.points),
       }))
       .sort(
@@ -3456,13 +3462,16 @@ export class GameService {
       )
     )
       blockers.push('host-disconnected');
-    try {
-      this.domain.validateComposition(
-        participants.length,
-        settingsFromRoom(room).specialRoles,
-      );
-    } catch {
-      blockers.push('invalid-composition');
+    const settings = settingsFromRoom(room);
+    if (!settings.hideSpecialRoles) {
+      try {
+        this.domain.validateComposition(
+          participants.length,
+          settings.specialRoles,
+        );
+      } catch {
+        blockers.push('invalid-composition');
+      }
     }
     return blockers;
   }

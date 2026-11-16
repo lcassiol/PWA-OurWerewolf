@@ -235,7 +235,9 @@ describe('lobby', () => {
     await user.click(screen.getByRole('button', { name: 'Modo Oculto' }));
 
     expect(screen.queryByLabelText(/Vidente/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Modo oculto ativo/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/será sorteada para o total de jogadores/),
+    ).toBeInTheDocument();
     await waitFor(() => {
       const settings = onSettings.mock.calls[0]?.[0];
       expect(settings).toEqual(

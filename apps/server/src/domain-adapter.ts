@@ -15,6 +15,7 @@ import {
   resolveNight,
   resolveWolfVotes,
   roleCatalog,
+  suggestSpecialRoles as suggestDomainSpecialRoles,
   validateDoctorTarget,
   validateGuardianTarget,
   type DayResolution,
@@ -35,6 +36,7 @@ import { HttpError } from './errors.js';
 
 export type DomainAdapter = {
   validateComposition(playerCount: number, specialRoles: RoleId[]): RoleId[];
+  suggestSpecialRoles(playerCount: number): RoleId[];
   assignRoles(
     participantIds: string[],
     composition: RoleId[],
@@ -142,6 +144,14 @@ export function createDomainAdapter(
           error instanceof Error ? error.message : 'Invalid role composition',
         );
       }
+    },
+    suggestSpecialRoles(playerCount) {
+      return callDomain(() =>
+        suggestDomainSpecialRoles(
+          playerCount,
+          () => nextInt(0x1_0000_0000) / 0x1_0000_0000,
+        ),
+      );
     },
     assignRoles(participantIds, composition) {
       return assignDomainRoles(

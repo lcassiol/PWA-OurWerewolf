@@ -7,6 +7,7 @@ import type {
   GameSnapshot,
   RoomSettings,
 } from '@our-werewolf/shared';
+import { translateUserMessage } from './userMessages';
 
 export class ApiRequestError extends Error {
   readonly code: string;
@@ -40,7 +41,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       // A transport error may not have a JSON body.
     }
     throw new ApiRequestError(
-      error?.message ?? 'Não foi possível falar com a vila.',
+      error?.message
+        ? translateUserMessage(error.message)
+        : 'Não foi possível falar com a vila.',
       error?.code,
       response.status,
     );

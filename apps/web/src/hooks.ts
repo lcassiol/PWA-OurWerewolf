@@ -2,6 +2,7 @@ import type { GameSnapshot, ServerEvent } from '@our-werewolf/shared';
 import { useEffect, useEffectEvent, useState } from 'react';
 import type { ApiClient } from './api';
 import { isSessionInvalid } from './snapshots';
+import { translateUserMessage } from './userMessages';
 
 export type NetworkState = 'connected' | 'reconnecting' | 'offline';
 
@@ -81,7 +82,7 @@ export function useRealtime({
       const payload = JSON.parse(event.data) as ServerEvent;
       if (payload.type === 'snapshot') onSnapshot(payload.snapshot);
       if (payload.type === 'error') {
-        onMessage(payload.error.message);
+        onMessage(translateUserMessage(payload.error.message));
         if (
           payload.error.code === 'stale_command' ||
           payload.error.code === 'phase_closed'

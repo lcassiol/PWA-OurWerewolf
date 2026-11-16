@@ -159,6 +159,7 @@ export const specialRoleIds = [
 ] as const satisfies readonly RoleId[];
 
 const specialRoleSet = new Set<RoleId>(specialRoleIds);
+const defensiveRoleSet = new Set<RoleId>(['witch', 'doctor', 'guardian']);
 
 export function isWerewolfRole(role: RoleId): boolean {
   return roleCatalog[role].alignment === 'werewolves';
@@ -213,6 +214,33 @@ export function buildRoleComposition(
     ...enabledSpecialRoles,
     ...Array<RoleId>(villagerCount).fill('villager'),
   ];
+}
+
+export function suggestSpecialRoles(
+  playerCount: number,
+  random: RandomSource = Math.random,
+): RoleId[] {
+  const werewolfCount = getWerewolfCount(playerCount);
+  const targetCount = Math.min(
+    playerCount <= 8 ? 2 : playerCount <= 12 ? 3 : playerCount <= 16 ? 4 : 5,
+    playerCount - werewolfCount - 1,
+  );
+  const maxDefensiveRoles = playerCount <= 12 ? 1 : 2;
+  const eligibleRoles = specialRoleIds.filter(
+    (role) => role !== 'alpha-wolf' || playerCount >= 9,
+  );
+  const suggestion: RoleId[] = [];
+  let defensiveCount = 0;
+
+  for (const role of shuffle(eligibleRoles, random)) {
+    if (defensiveRoleSet.has(role) && defensiveCount >= maxDefensiveRoles)
+      continue;
+    suggestion.push(role);
+    if (defensiveRoleSet.has(role)) defensiveCount += 1;
+    if (suggestion.length === targetCount) break;
+  }
+
+  return suggestion;
 }
 
 function drawRandom(random: RandomSource): number {

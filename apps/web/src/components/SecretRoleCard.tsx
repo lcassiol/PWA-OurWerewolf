@@ -31,22 +31,46 @@ export function SecretRoleCard({
   canReveal: boolean;
 }) {
   const role = privateState.role ? roleCatalog[privateState.role] : null;
+  const [expanded, setExpanded] = useState(true);
+  const [contentVersion, setContentVersion] = useState(0);
 
   if (!role) return null;
 
   return (
-    <section className="secret-card" aria-label="Sua carta secreta">
-      {canReveal ? (
-        <RevealableSecret
-          privateState={privateState}
-          players={players}
-          artworkSetId={artworkSetId}
-          roleId={privateState.role!}
-          role={role}
-        />
-      ) : (
-        <SecretCover canReveal={false} onReveal={() => undefined} />
-      )}
+    <section
+      className={`secret-card${expanded ? '' : ' is-mobile-collapsed'}`}
+      aria-label="Sua carta secreta"
+    >
+      <button
+        className="mobile-disclosure secret-card__toggle"
+        type="button"
+        aria-expanded={expanded}
+        aria-controls="secret-card-body"
+        onClick={() => {
+          if (expanded) setContentVersion((current) => current + 1);
+          setExpanded((current) => !current);
+        }}
+      >
+        <span>{expanded ? 'Esconder carta' : 'Ver minha carta'}</span>
+        <span aria-hidden="true">{expanded ? '−' : '+'}</span>
+      </button>
+      <div
+        className={`secret-card__body${expanded ? '' : ' is-mobile-collapsed'}`}
+        id="secret-card-body"
+      >
+        {canReveal ? (
+          <RevealableSecret
+            key={contentVersion}
+            privateState={privateState}
+            players={players}
+            artworkSetId={artworkSetId}
+            roleId={privateState.role!}
+            role={role}
+          />
+        ) : (
+          <SecretCover canReveal={false} onReveal={() => undefined} />
+        )}
+      </div>
     </section>
   );
 }

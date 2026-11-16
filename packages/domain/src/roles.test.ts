@@ -17,6 +17,7 @@ import {
   resolveWolfVotes,
   roleCatalog,
   shuffle,
+  suggestSpecialRoles,
   validateDoctorTarget,
   validateGuardianTarget,
   type DomainPlayer,
@@ -72,6 +73,33 @@ describe('role composition and assignment', () => {
     expect(composition.filter((role) => role === 'alpha-wolf')).toHaveLength(1);
     expect(composition.filter((role) => role === 'villager')).toHaveLength(6);
   });
+
+  it.each([
+    [6, 2],
+    [8, 2],
+    [9, 3],
+    [12, 3],
+    [13, 4],
+    [16, 4],
+    [17, 5],
+    [20, 5],
+  ])(
+    'suggests %i-player hidden games with %i special roles',
+    (playerCount, specialCount) => {
+      const roles = suggestSpecialRoles(playerCount, () => 0);
+      const composition = buildRoleComposition(playerCount, roles);
+
+      expect(roles).toHaveLength(specialCount);
+      expect(new Set(roles)).toHaveLength(specialCount);
+      expect(composition).toHaveLength(playerCount);
+      expect(composition).toContain('villager');
+      expect(
+        roles.filter((role) => ['witch', 'doctor', 'guardian'].includes(role))
+          .length,
+      ).toBeLessThanOrEqual(playerCount <= 12 ? 1 : 2);
+      if (playerCount < 9) expect(roles).not.toContain('alpha-wolf');
+    },
+  );
 
   it('rejects duplicate, fixed, and excessive special roles', () => {
     expect(() => buildRoleComposition(6, ['seer', 'seer'])).toThrowError(

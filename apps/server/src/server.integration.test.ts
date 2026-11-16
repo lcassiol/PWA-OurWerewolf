@@ -297,7 +297,8 @@ void test('room edge cases preserve authorization and frozen lobby state', async
           .get() as { frozen_settings_json: string }
       ).frozen_settings_json,
     ) as RoomSettings;
-    assert.deepEqual(frozenSettings.specialRoles, ['seer']);
+    assert.equal(frozenSettings.specialRoles.length, 2);
+    assert.equal(new Set(frozenSettings.specialRoles).size, 2);
     const playingGuestSettings = (await getSnapshot(application, code, guest))
       .public.settings;
     assert.equal(playingGuestSettings.hideSpecialRoles, true);

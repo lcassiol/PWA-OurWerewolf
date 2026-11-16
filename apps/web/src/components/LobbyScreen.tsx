@@ -437,8 +437,8 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
           </div>
           {hideSpecialRoles ? (
             <p className="hidden-roles-status">
-              Modo oculto ativo. Uma composição equilibrada foi salva sem
-              revelar os papéis.
+              Modo oculto ativo. Uma composição equilibrada será sorteada para o
+              total de jogadores quando a partida começar.
             </p>
           ) : (
             <div className="role-grid">

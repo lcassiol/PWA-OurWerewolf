@@ -162,6 +162,56 @@ void test('an assignment failure rolls back the complete game start', () => {
   }
 });
 
+void test('hidden mode balances roles from the actual player count at start', () => {
+  const database = new DatabaseSync(':memory:');
+  migrateUp(database);
+  const service = new GameService({
+    database,
+    domain: createDomainAdapter((maximum) => maximum - 1),
+    logger: createLogger(() => undefined),
+    sessionSecret: 'test-secret-that-is-at-least-32-characters',
+    sessionTtlSeconds: 3_600,
+  });
+  try {
+    const host = service.createRoom('Player 0');
+    const members: Member[] = [host];
+    for (let index = 1; index < 20; index += 1) {
+      members.push(service.joinRoom(host.identity.roomCode, `Player ${index}`));
+    }
+    service.setConnected(host.identity, true);
+    service.updateSettings(host.identity, {
+      discussionMinutes: 1,
+      allowNoExile: false,
+      hideSpecialRoles: true,
+      showFinalTimeline: true,
+      specialRoles: ['seer', 'hunter'],
+    });
+    for (const member of members) service.setReady(member.identity, true);
+
+    service.startGame(host.identity);
+
+    const roles = members.map(
+      (member) => service.project(member.identity).private.role,
+    );
+    assert.equal(roles.filter((role) => role === 'werewolf').length, 4);
+    assert.equal(roles.filter((role) => role === 'villager').length, 11);
+    assert.equal(
+      roles.filter((role) => role !== 'werewolf' && role !== 'villager').length,
+      5,
+    );
+    const frozenSettings = JSON.parse(
+      (
+        database.prepare('SELECT frozen_settings_json FROM games').get() as {
+          frozen_settings_json: string;
+        }
+      ).frozen_settings_json,
+    ) as { specialRoles: RoleId[] };
+    assert.equal(frozenSettings.specialRoles.length, 5);
+  } finally {
+    database.close();
+  }
+});
+
 void test('Cupid gates the pack, stage timeout advances once, and Witch abstention preserves potions', () => {
   const { database, service, host, members, lobbyVersion } = fixture([
     'cupid',

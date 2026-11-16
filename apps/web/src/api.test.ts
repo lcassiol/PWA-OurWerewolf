@@ -175,4 +175,26 @@ describe('cliente HTTP', () => {
       expect.objectContaining({ status: 401 }),
     );
   });
+
+  it('traduz mensagens de erro recebidas do servidor', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { code: 'not_found', message: 'Room not found' },
+          }),
+          { status: 404 },
+        ),
+      ),
+    );
+
+    await expect(api.joinRoom('LUAR', 'Iara')).rejects.toEqual(
+      expect.objectContaining({
+        code: 'not_found',
+        status: 404,
+        message: 'Sala não encontrada.',
+      }),
+    );
+  });
 });
