@@ -25,6 +25,7 @@ test('six mobile clients finish a complete game', async ({
       await page.goto('/');
     }
 
+    await pages[0]!.getByRole('button', { name: 'Criar sala' }).click();
     await pages[0]!.getByLabel('Seu apelido').fill('Host');
     await pages[0]!.getByRole('button', { name: 'Criar minha vila' }).click();
     const codeButton = pages[0]!.getByRole('button', {
@@ -185,6 +186,7 @@ test('two eliminated players use the afterlife while living players stay isolate
       await page.goto('/');
     }
 
+    await pages[0]!.getByRole('button', { name: 'Criar sala' }).click();
     await pages[0]!.getByLabel('Seu apelido').fill(names[0]!);
     await pages[0]!.getByRole('button', { name: 'Criar minha vila' }).click();
     const codeButton = pages[0]!.getByRole('button', {

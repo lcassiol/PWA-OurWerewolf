@@ -210,6 +210,206 @@ describe('fases e decisões', () => {
     host: null,
   });
 
+  it('mostra ao Necromante somente o registro anônimo e sem escrita durante a noite', () => {
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...makeSnapshot().public,
+            status: 'playing',
+            phase: 'night',
+            round: 3,
+          },
+          private: {
+            ...makeSnapshot().private,
+            role: 'necromancer',
+            alignment: 'village',
+            objective: 'Escute os mortos.',
+            necromancerTranscript: {
+              round: 3,
+              visibilityPercent: 20,
+              messages: [
+                {
+                  sequence: 1,
+                  spiritLabel: 'Espírito 1',
+                  text: 'v@z? <lobisomem>',
+                },
+              ],
+            },
+          },
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={vi.fn()}
+        onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Sussurros dos mortos' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Espírito 1')).toBeInTheDocument();
+    expect(screen.getByText('v@z? <lobisomem>')).toBeInTheDocument();
+    expect(screen.getByText(/compreender 20%/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '20',
+    );
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Enviar mensagem/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('prioriza o último disparo do Caçador sobre o painel do Além', () => {
+    const base = makeSnapshot();
+    const afterlife = {
+      state: 'waiting' as const,
+      entranceMessage: null,
+      messages: [],
+      availablePoints: 0,
+      nextRound: 2,
+    };
+    const props = {
+      network: 'connected' as const,
+      privateFresh: true,
+      busy: false,
+      message: null,
+      onCommand: vi.fn(),
+      onReadyForVote: vi.fn(),
+      onAcknowledgeDayResolution: vi.fn(),
+      onAvatarChange: vi.fn(),
+      onReturn: vi.fn(),
+      onInstall: vi.fn(),
+    };
+    const { rerender } = render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...base.public,
+            status: 'playing',
+            phase: 'hunter-shot',
+            players: base.public.players.map((player) =>
+              player.id === 'p1' ? { ...player, alive: false } : player,
+            ),
+          },
+          private: {
+            ...base.private,
+            role: 'hunter',
+            alignment: 'village',
+            availableAction: {
+              type: 'hunter-shoot',
+              targets: ['p2'],
+              minTargets: 1,
+              maxTargets: 1,
+              allowAbstain: true,
+            },
+            afterlife,
+          },
+        })}
+        {...props}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Seu último disparo' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Confirmar alvo' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Oráculo do Além' }),
+    ).not.toBeInTheDocument();
+
+    rerender(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...base.public,
+            status: 'playing',
+            phase: 'dawn',
+            players: base.public.players.map((player) =>
+              player.id === 'p1' ? { ...player, alive: false } : player,
+            ),
+          },
+          private: {
+            ...base.private,
+            role: 'hunter',
+            alignment: 'village',
+            submittedAction: {
+              type: 'hunter-shoot',
+              targets: ['p2'],
+            },
+            afterlife,
+          },
+        })}
+        {...props}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Sua decisão foi guardada' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Você escolheu atirar em/)).toHaveTextContent(
+      'Bento',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Confirmar alvo' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('mostra quando o Caçador confirmou que não vai atirar', () => {
+    const base = makeSnapshot();
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...base.public,
+            status: 'playing',
+            phase: 'dawn',
+            players: base.public.players.map((player) =>
+              player.id === 'p1' ? { ...player, alive: false } : player,
+            ),
+          },
+          private: {
+            ...base.private,
+            role: 'hunter',
+            alignment: 'village',
+            submittedAction: { type: 'hunter-shoot', targets: [] },
+            afterlife: {
+              state: 'waiting',
+              entranceMessage: null,
+              messages: [],
+              availablePoints: 0,
+              nextRound: 2,
+            },
+          },
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={vi.fn()}
+        onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Você escolheu não atirar.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Confirmar abstenção' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('exibe de forma conclusiva um amanhecer sem mortes e recolhe os jogadores', async () => {
     const user = userEvent.setup();
     render(
@@ -442,7 +642,7 @@ describe('fases e decisões', () => {
   it('envia voto com versão e fase autoritativas', async () => {
     const user = userEvent.setup();
     const onCommand = vi.fn().mockResolvedValue(true);
-    render(
+    const { rerender } = render(
       <GameScreen
         snapshot={votingSnapshot}
         network="connected"
@@ -462,7 +662,6 @@ describe('fases e decisões', () => {
     await user.click(screen.getByLabelText('Bento'));
     const submit = screen.getByRole('button', { name: 'Confirmar voto' });
     await user.click(submit);
-    expect(submit).toHaveClass('is-confirmed');
     expect(onCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedVersion: 3,
@@ -471,8 +670,86 @@ describe('fases e decisões', () => {
         targets: ['p2'],
       }),
     );
-    await user.click(screen.getByLabelText('Cora'));
-    expect(submit).not.toHaveClass('is-confirmed');
+    rerender(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: votingSnapshot.public,
+          private: {
+            ...votingSnapshot.private,
+            submittedAction: { type: 'day-vote', targets: ['p2'] },
+          },
+          host: null,
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={onCommand}
+        onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole('heading', {
+        name: 'Aguardando a decisão dos outros jogadores',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Seu voto foi em/)).toHaveTextContent('Bento');
+    expect(screen.queryByLabelText('Cora')).not.toBeInTheDocument();
+  });
+
+  it('substitui a seleção da Vidente pelo resultado confirmado', () => {
+    render(
+      <GameScreen
+        snapshot={makeSnapshot({
+          public: {
+            ...makeSnapshot().public,
+            status: 'playing',
+            phase: 'night',
+            round: 2,
+          },
+          private: {
+            ...makeSnapshot().private,
+            role: 'seer',
+            alignment: 'village',
+            availableAction: {
+              type: 'seer-inspect',
+              targets: ['p2', 'p3'],
+              minTargets: 1,
+              maxTargets: 1,
+              allowAbstain: true,
+            },
+            submittedAction: {
+              type: 'seer-inspect',
+              targets: ['p2'],
+              result: 'werewolves',
+            },
+          },
+          host: null,
+        })}
+        network="connected"
+        privateFresh
+        busy={false}
+        message={null}
+        onCommand={vi.fn()}
+        onReadyForVote={vi.fn()}
+        onAcknowledgeDayResolution={vi.fn()}
+        onAvatarChange={vi.fn()}
+        onReturn={vi.fn()}
+        onInstall={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Resultado da consulta' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/pertence ao alinhamento/)).toHaveTextContent(
+      'Bento pertence ao alinhamento Lobisomens.',
+    );
+    expect(screen.queryByLabelText('Cora')).not.toBeInTheDocument();
   });
 
   it('bloqueia comandos enquanto estiver offline', () => {
@@ -785,7 +1062,7 @@ describe('entretenimento dos mortos', () => {
       afterlife: {
         state: 'open',
         entranceMessage:
-          'A vila encerrou sua jornada, mas seu espírito continua observando. Faça suas previsões e dispute o título de Oráculo do Além.',
+          'Você foi morto pelo ataque dos Lobisomens durante a noite. Sua jornada continua no Além: faça suas previsões e dispute o título de Oráculo do Além.',
         messages: [
           {
             id: 'm1',
@@ -840,10 +1117,9 @@ describe('entretenimento dos mortos', () => {
       />,
     );
 
-    expect(screen.getByText(/A vila encerrou sua jornada/)).toHaveAttribute(
-      'role',
-      'status',
-    );
+    expect(
+      screen.getByText(/morto pelo ataque dos Lobisomens/),
+    ).toHaveAttribute('role', 'status');
     expect(
       screen.getByText('<img src=x onerror=alert(1)>'),
     ).toBeInTheDocument();

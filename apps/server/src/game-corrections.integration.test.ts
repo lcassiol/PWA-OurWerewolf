@@ -261,6 +261,51 @@ void test('Cupid gates the pack, stage timeout advances once, and Witch abstenti
   }
 });
 
+void test('Witch can cast a day vote after using a potion', () => {
+  const { database, service, members } = fixture(['witch']);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const witch = byRole(service, members, 'witch');
+    const poisonTarget = byRole(service, members, 'villager');
+    submit(service, wolf, 'wolf-vote', []);
+    submit(service, witch, 'witch-poison', [
+      poisonTarget.identity.participantId,
+    ]);
+    expire(service, database);
+    expire(service, database);
+    assert.equal(service.project(witch.identity).public.phase, 'voting');
+
+    const voteTarget = service
+      .project(witch.identity)
+      .public.players.find(
+        (player) => player.alive && player.id !== witch.identity.participantId,
+      );
+    assert.ok(voteTarget);
+    const voted = submit(service, witch, 'day-vote', [voteTarget.id]);
+    assert.deepEqual(voted.private.submittedAction, {
+      type: 'day-vote',
+      targets: [voteTarget.id],
+    });
+  } finally {
+    database.close();
+  }
+});
+
+void test('living Hunter is not offered the final shot as a night action', () => {
+  const { database, service, members } = fixture(['hunter', 'doctor']);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const hunter = byRole(service, members, 'hunter');
+    submit(service, wolf, 'wolf-vote', []);
+    assert.equal(
+      service.project(hunter.identity).private.availableAction,
+      null,
+    );
+  } finally {
+    database.close();
+  }
+});
+
 void test('pack target locks only after every living wolf submits', () => {
   const { database, service, members } = fixture(['witch'], 9);
   try {
@@ -281,6 +326,55 @@ void test('pack target locks only after every living wolf submits', () => {
       'witch-heal',
     );
     assert.equal(effectCount(database, 'wolf-target-locked'), 1);
+  } finally {
+    database.close();
+  }
+});
+
+void test('presence changes preserve the wolf action until the pack deadline', () => {
+  const { database, service, members } = fixture(['seer']);
+  try {
+    const wolf = byRole(service, members, 'werewolf');
+    const seer = byRole(service, members, 'seer');
+    const initial = service.project(wolf.identity);
+    assert.equal(initial.private.availableAction?.type, 'wolf-vote');
+    const phase = database
+      .prepare('SELECT opened_at, deadline FROM phases WHERE closed_at IS NULL')
+      .get() as { opened_at: string; deadline: string };
+    assert.equal(
+      new Date(phase.deadline).getTime() - new Date(phase.opened_at).getTime(),
+      120_000,
+    );
+
+    service.setConnected(wolf.identity, false);
+    service.setConnected(wolf.identity, true);
+
+    assert.equal(
+      service.project(wolf.identity).private.availableAction?.type,
+      'wolf-vote',
+    );
+    assert.equal(
+      (
+        database
+          .prepare(
+            'SELECT count(*) AS count FROM actions WHERE participant_id = ?',
+          )
+          .get(wolf.identity.participantId) as { count: number }
+      ).count,
+      0,
+    );
+    assert.equal(effectCount(database, 'abstention'), 0);
+
+    expire(service, database);
+
+    const afterDeadline = service.project(wolf.identity);
+    assert.equal(afterDeadline.public.phase, 'first-night');
+    assert.equal(afterDeadline.private.availableAction, null);
+    assert.equal(
+      service.project(seer.identity).private.availableAction?.type,
+      'seer-inspect',
+    );
+    assert.equal(effectCount(database, 'abstention'), 1);
   } finally {
     database.close();
   }
@@ -399,7 +493,10 @@ void test('an unprotected wolf target is dead and announced at dawn', () => {
     assert.match(dawn.public.announcements[0]!, new RegExp(victimName));
     const victimAfterlife = service.project(victim.identity).private.afterlife;
     assert.equal(victimAfterlife?.state, 'open');
-    assert.equal(victimAfterlife?.entranceMessage, null);
+    assert.equal(
+      victimAfterlife?.entranceMessage,
+      'Você foi morto pelo ataque dos Lobisomens durante a noite. Sua jornada continua no Além: faça suas previsões e dispute o título de Oráculo do Além.',
+    );
     assert.equal(victimAfterlife?.availablePoints, 10);
     assert.equal(service.project(wolf.identity).private.afterlife, null);
     const initialPoints = database
@@ -469,6 +566,153 @@ void test('administrative removal does not create an afterlife balance', () => {
       ).count,
       0,
     );
+  } finally {
+    database.close();
+  }
+});
+
+void test('living Necromancer receives only an anonymous progressively decoded transcript at night', () => {
+  const { database, service, members } = fixture(['necromancer']);
+  try {
+    const necromancer = byRole(service, members, 'necromancer');
+    const firstSpirit = byRole(service, members, 'villager', 0);
+    const secondSpirit = byRole(service, members, 'villager', 1);
+    const ordinaryLiving = byRole(service, members, 'villager', 2);
+    const game = database.prepare('SELECT id FROM games').get() as {
+      id: string;
+    };
+    const firstText =
+      'A verdade mora perto do sino quebrado, mas desconfie de toda promessa.';
+    const secondText =
+      'Eu vi uma sombra atravessar a praça antes do amanhecer.';
+    database
+      .prepare(
+        'UPDATE assignments SET alive = 0 WHERE game_id = ? AND participant_id IN (?, ?)',
+      )
+      .run(
+        game.id,
+        firstSpirit.identity.participantId,
+        secondSpirit.identity.participantId,
+      );
+    database
+      .prepare(
+        `INSERT INTO afterlife_messages
+          (id, game_id, participant_id, text, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'spirit-message-1',
+        game.id,
+        firstSpirit.identity.participantId,
+        firstText,
+        '2026-01-01T00:00:00.000Z',
+      );
+    database
+      .prepare(
+        `INSERT INTO afterlife_messages
+          (id, game_id, participant_id, text, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'spirit-message-2',
+        game.id,
+        firstSpirit.identity.participantId,
+        'Ainda estou aqui.',
+        '2026-01-01T00:00:01.000Z',
+      );
+    database
+      .prepare(
+        `INSERT INTO afterlife_messages
+          (id, game_id, participant_id, text, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'spirit-message-3',
+        game.id,
+        secondSpirit.identity.participantId,
+        secondText,
+        '2026-01-01T00:00:02.000Z',
+      );
+
+    const firstNight = service.project(necromancer.identity);
+    assert.equal(firstNight.private.afterlife, null);
+    assert.equal(
+      firstNight.private.necromancerTranscript?.visibilityPercent,
+      0,
+    );
+    assert.deepEqual(
+      firstNight.private.necromancerTranscript?.messages.map(
+        (message) => message.spiritLabel,
+      ),
+      ['Espírito 1', 'Espírito 1', 'Espírito 2'],
+    );
+    assert.ok(
+      !JSON.stringify(firstNight.private.necromancerTranscript).includes(
+        firstText,
+      ),
+    );
+    assert.ok(
+      !JSON.stringify(firstNight.private.necromancerTranscript).includes(
+        firstSpirit.identity.participantId,
+      ),
+    );
+    assert.equal(
+      service.project(ordinaryLiving.identity).private.necromancerTranscript,
+      null,
+    );
+
+    database
+      .prepare("UPDATE games SET phase = 'night', round = 2 WHERE id = ?")
+      .run(game.id);
+    const secondNight = service.project(necromancer.identity).private
+      .necromancerTranscript;
+    assert.equal(secondNight?.visibilityPercent, 10);
+    const partiallyDecoded = secondNight?.messages[0]?.text ?? '';
+    assert.notEqual(partiallyDecoded, firstText);
+    assert.ok(
+      Array.from(partiallyDecoded).some(
+        (character, index) => character === Array.from(firstText)[index],
+      ),
+    );
+
+    database.prepare('UPDATE games SET round = 3 WHERE id = ?').run(game.id);
+    const thirdNightText = service.project(necromancer.identity).private
+      .necromancerTranscript?.messages[0]?.text;
+    const revealedCharacters = (value: string) =>
+      Array.from(value).filter(
+        (character, index) => character === Array.from(firstText)[index],
+      ).length;
+    assert.ok(
+      revealedCharacters(thirdNightText ?? '') >=
+        revealedCharacters(partiallyDecoded),
+    );
+
+    database.prepare('UPDATE games SET round = 11 WHERE id = ?').run(game.id);
+    assert.equal(
+      service.project(necromancer.identity).private.necromancerTranscript
+        ?.messages[0]?.text,
+      firstText,
+    );
+
+    database
+      .prepare("UPDATE games SET phase = 'dawn' WHERE id = ?")
+      .run(game.id);
+    assert.equal(
+      service.project(necromancer.identity).private.necromancerTranscript,
+      null,
+    );
+
+    database
+      .prepare(
+        'UPDATE assignments SET alive = 0 WHERE game_id = ? AND participant_id = ?',
+      )
+      .run(game.id, necromancer.identity.participantId);
+    database
+      .prepare("UPDATE games SET phase = 'night' WHERE id = ?")
+      .run(game.id);
+    const deadNecromancer = service.project(necromancer.identity).private;
+    assert.equal(deadNecromancer.necromancerTranscript, null);
+    assert.ok(deadNecromancer.afterlife);
   } finally {
     database.close();
   }
@@ -764,6 +1008,12 @@ void test('seer knowledge remains private from villagers and every other role', 
     );
     submit(service, seer, 'seer-inspect', [wolf.identity.participantId]);
 
+    assert.deepEqual(service.project(seer.identity).private.submittedAction, {
+      type: 'seer-inspect',
+      targets: [wolf.identity.participantId],
+      result: 'werewolves',
+    });
+
     assert.deepEqual(service.project(seer.identity).private.knownPlayers, [
       { playerId: wolf.identity.participantId, fact: 'werewolves' },
     ]);
@@ -805,12 +1055,14 @@ void test('Hunter resumes dawn after a night death and night after a day death',
       'hunter-shot',
     );
     const shotTarget = byRole(night.service, night.members, 'villager');
-    assert.equal(
-      submit(night.service, hunter, 'hunter-shoot', [
-        shotTarget.identity.participantId,
-      ]).public.phase,
-      'dawn',
-    );
+    const shot = submit(night.service, hunter, 'hunter-shoot', [
+      shotTarget.identity.participantId,
+    ]);
+    assert.equal(shot.public.phase, 'dawn');
+    assert.deepEqual(shot.private.submittedAction, {
+      type: 'hunter-shoot',
+      targets: [shotTarget.identity.participantId],
+    });
     assert.equal(
       night.service
         .project(hunter.identity)
@@ -845,11 +1097,12 @@ void test('Hunter resumes dawn after a night death and night after a day death',
       day.service.project(hunter.identity).public.phase,
       'hunter-shot',
     );
-    expire(day.service, day.database);
-    assert.equal(
-      day.service.project(hunter.identity).public.phase,
-      'day-resolution',
-    );
+    const abstention = submit(day.service, hunter, 'hunter-shoot', []);
+    assert.equal(abstention.public.phase, 'day-resolution');
+    assert.deepEqual(abstention.private.submittedAction, {
+      type: 'hunter-shoot',
+      targets: [],
+    });
     for (const member of day.members) {
       const self = day.service
         .project(member.identity)
@@ -886,7 +1139,24 @@ void test('day votes resolve when voting closes and results are visible in day-r
     assert.equal(vote?.type, 'day-vote');
     assert.equal(vote?.allowAbstain, true);
     assert.ok(!vote?.targets.includes('no-exile'));
-    for (const member of members) submit(service, member, 'day-vote', []);
+    const firstVoter = members[0]!;
+    submit(service, firstVoter, 'day-vote', []);
+    assert.deepEqual(
+      service.project(firstVoter.identity).private.submittedAction,
+      {
+        type: 'day-vote',
+        targets: [],
+      },
+    );
+    assert.throws(
+      () =>
+        submit(service, firstVoter, 'day-vote', [
+          members[1]!.identity.participantId,
+        ]),
+      /already been submitted/i,
+    );
+    for (const member of members.slice(1))
+      submit(service, member, 'day-vote', []);
     const result = service.project(host.identity);
     assert.equal(result.public.phase, 'day-resolution');
     assert.ok(
@@ -976,7 +1246,7 @@ void test('an exile is announced only once in day-resolution', () => {
     assert.ok(!resolution.public.announcements.includes(nightAnnouncement));
     assert.equal(
       resolution.private.afterlife?.entranceMessage,
-      'A vila encerrou sua jornada, mas seu espírito continua observando. Faça suas previsões e dispute o título de Oráculo do Além.',
+      'Você foi eliminado pela votação da Cidade. Sua jornada continua no Além: faça suas previsões e dispute o título de Oráculo do Além.',
     );
     assert.equal(resolution.private.afterlife?.state, 'waiting');
     const livingView = members.find(

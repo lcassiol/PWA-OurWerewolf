@@ -52,16 +52,16 @@ describe('day voting and resolution', () => {
     });
   });
 
-  it('replaces a voter choice and rejects dead voters and self votes', () => {
+  it('keeps a confirmed choice and rejects dead voters and self votes', () => {
     const first = castDayVote(
       [],
       { voterId: 'v1', targetId: 'v2' },
       players,
       false,
     );
-    expect(
+    expect(() =>
       castDayVote(first, { voterId: 'v1', targetId: 'v3' }, players, false),
-    ).toEqual([{ voterId: 'v1', targetId: 'v3' }]);
+    ).toThrowError('cannot be changed');
     expect(() =>
       castDayVote([], { voterId: 'v1', targetId: 'v1' }, players, false),
     ).toThrowError('another living player');

@@ -18,7 +18,7 @@ export function HomeScreen({
   onJoin,
   onInstall,
 }: HomeScreenProps) {
-  const [mode, setMode] = useState<'create' | 'join'>('create');
+  const [mode, setMode] = useState<'create' | 'join'>('join');
   const [nickname, setNickname] = useState('');
   const [roomCode, setRoomCode] = useState('');
 
@@ -53,19 +53,19 @@ export function HomeScreen({
         >
           <button
             type="button"
-            aria-pressed={mode === 'create'}
-            className={mode === 'create' ? 'is-active' : ''}
-            onClick={() => setMode('create')}
-          >
-            Criar sala
-          </button>
-          <button
-            type="button"
             aria-pressed={mode === 'join'}
             className={mode === 'join' ? 'is-active' : ''}
             onClick={() => setMode('join')}
           >
             Entrar com código
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === 'create'}
+            className={mode === 'create' ? 'is-active' : ''}
+            onClick={() => setMode('create')}
+          >
+            Criar sala
           </button>
         </div>
 

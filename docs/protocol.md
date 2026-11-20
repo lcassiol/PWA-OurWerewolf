@@ -51,7 +51,7 @@ It requests a complete current projection. Game commands use HTTP so retries hav
 ## Snapshot boundaries
 
 - `public`: room code/status, monotonic version, round, phase, absolute ISO-8601 deadline, public player state/settings/announcements, and main winner.
-- `private`: only the authenticated participant's role, alignment, objective, knowledge, resources, available action, optional alternative actions, personal-win status, and recipient-authorized afterlife state.
+- `private`: only the authenticated participant's role, alignment, objective, knowledge, resources, available action, optional alternative actions, personal-win status, recipient-authorized afterlife state, and the Necromancer's night-only obfuscated transcript when applicable.
 - `host`: lobby controls and non-secret blockers only. Being host grants no extra role visibility.
 - `finalRoles`: omitted until the immutable finished state, then contains the complete reveal and winner flags.
 
@@ -66,7 +66,7 @@ Clients must never infer permissions from role names. They render and submit onl
 - `closed`: preserves the authenticated participant's last entry without revealing correctness.
 - `finished`: includes the participant's own ledger plus the dead-only ranking and shared Oracle ids.
 
-All states include the dead-only chat in authoritative order. The village-exile entrance message appears only to the exiled recipient. Living snapshots never contain chat, choices, points, or ranking. Final public roles and events do not carry the afterlife ranking.
+All states include the dead-only chat in authoritative order. The village-exile entrance message appears only to the exiled recipient. Living snapshots never contain raw chat, choices, points, or ranking. The sole exception is `private.necromancerTranscript`: during `first-night` or `night`, a living Necromancer receives anonymous labels and server-obfuscated text without message IDs, participant IDs, nicknames, timestamps, entries, balances, or ranking. It starts at 0% clarity in round 1 and reveals 10 additional percentage points each round, including old messages. Final public roles and events do not carry the afterlife ranking.
 
 The server opens one afterlife activity after night deaths when `dawn` opens and fixes eligibility at that moment. It closes the activity before resolving the daytime vote. A correct exile prediction credits 3 points; werewolf marks settle at game end for +1/-1 each; a correct team wager wins its stake as net points and an incorrect wager loses it. Each eliminated participant starts with 10 fictional points, and displayed final scores have a zero floor. Tied top scores share the Oracle title.
 

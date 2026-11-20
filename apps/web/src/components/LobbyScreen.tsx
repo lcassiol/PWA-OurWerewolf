@@ -18,6 +18,7 @@ import { themeCatalog } from '../themeCatalog';
 import { ConnectionBadge } from './ConnectionBadge';
 import { ParticipantAvatar } from './ParticipantAvatar';
 import { AvatarPicker } from './AvatarPicker';
+import { RoleIcon } from './RoleIcon';
 
 type LobbyScreenProps = {
   snapshot: GameSnapshot;
@@ -462,9 +463,7 @@ function SettingsPanel({ snapshot, connected, onSave }: SettingsPanelProps) {
                       }
                       onChange={() => toggleRole(roleId)}
                     />
-                    <span className="role-option__mark" aria-hidden="true">
-                      {role.mark}
-                    </span>
+                    <RoleIcon roleId={roleId} className="role-option__mark" />
                     <span>
                       {role.name}
                       <small>{role.short}</small>
@@ -531,14 +530,17 @@ function SettingsSummary({
           {settings.hideSpecialRoles ? (
             <p>O anfitrião manteve a composição em segredo.</p>
           ) : settings.specialRoles.length > 0 ? (
-            <ul>
+            <div className="role-grid role-grid--readonly">
               {settings.specialRoles.map((role) => (
-                <li key={role}>
-                  <span aria-hidden="true">{roleCatalog[role].mark}</span>
-                  {roleCatalog[role].name}
-                </li>
+                <article className="role-option is-selected" key={role}>
+                  <RoleIcon roleId={role} className="role-option__mark" />
+                  <span>
+                    <strong>{roleCatalog[role].name}</strong>
+                    <small>{roleCatalog[role].short}</small>
+                  </span>
+                </article>
               ))}
-            </ul>
+            </div>
           ) : (
             <p>Nenhum papel especial selecionado.</p>
           )}
@@ -565,7 +567,7 @@ function ThemeArtwork({ themeId }: { themeId: ThemeId }) {
 function RoleReference() {
   return (
     <details className="role-catalog role-reference">
-      <summary>Consultar regras dos 11 papéis</summary>
+      <summary>Consultar regras dos 13 papéis</summary>
       <div>
         {(
           Object.entries(roleCatalog) as Array<

@@ -9,6 +9,7 @@ import type {
   GameCommand,
   GamePhase,
   GameSnapshot,
+  KnowledgeFact,
   PlayerSummary,
 } from '@our-werewolf/shared';
 import { useRef, useState } from 'react';
@@ -20,6 +21,7 @@ import { ConnectionBadge } from './ConnectionBadge';
 import { AvatarPicker } from './AvatarPicker';
 import { ParticipantAvatar } from './ParticipantAvatar';
 import { SecretRoleCard } from './SecretRoleCard';
+import { RoleIcon } from './RoleIcon';
 
 type GameScreenProps = {
   snapshot: GameSnapshot;
@@ -79,6 +81,19 @@ export function GameScreen({
     (player) => player.id === snapshot.private.playerId,
   )?.alive;
   const afterlife = snapshot.private.afterlife;
+  const hunterDecision =
+    snapshot.private.availableAction?.type === 'hunter-shoot' ||
+    snapshot.private.submittedAction?.type === 'hunter-shoot';
+  const necromancerTranscript =
+    currentPhase === 'first-night' || currentPhase === 'night'
+      ? snapshot.private.necromancerTranscript
+      : null;
+  const submittedDecision =
+    snapshot.private.submittedAction?.type === 'day-vote' ||
+    snapshot.private.submittedAction?.type === 'seer-inspect' ||
+    snapshot.private.submittedAction?.type === 'hunter-shoot'
+      ? snapshot.private.submittedAction
+      : null;
 
   return (
     <main className="app-shell game-shell" id="main-content">
@@ -121,17 +136,33 @@ export function GameScreen({
         ) : null}
       </section>
 
-      {!afterlife ? (
-        <div className="game-grid">
-          <SecretRoleCard
-            privateState={snapshot.private}
-            players={publicState.players}
-            artworkSetId={publicState.roleArtworkSetId ?? 'realistic'}
-            canReveal={network === 'connected' && privateFresh}
-          />
+      {!afterlife || hunterDecision ? (
+        <div
+          className={
+            hunterDecision ? 'game-grid game-grid--action-only' : 'game-grid'
+          }
+        >
+          {!afterlife ? (
+            <SecretRoleCard
+              privateState={snapshot.private}
+              players={publicState.players}
+              artworkSetId={publicState.roleArtworkSetId ?? 'realistic'}
+              canReveal={network === 'connected' && privateFresh}
+            />
+          ) : null}
 
           <section className="panel phase-panel" aria-labelledby="action-title">
-            {currentPhase === 'dawn' || currentPhase === 'day-resolution' ? (
+            {submittedDecision ? (
+              <SubmittedDecisionPanel
+                action={submittedDecision}
+                players={publicState.players}
+                phase={currentPhase}
+                acknowledgement={publicState.dayResolutionAcknowledgement}
+                acknowledged={snapshot.private.acknowledgedDayResolution}
+                disabled={busy || network !== 'connected'}
+                onAcknowledge={onAcknowledgeDayResolution}
+              />
+            ) : currentPhase === 'dawn' || currentPhase === 'day-resolution' ? (
               <AnnouncementPanel
                 snapshot={snapshot}
                 disabled={busy || network !== 'connected'}
@@ -147,6 +178,8 @@ export function GameScreen({
               />
             ) : !privateFresh || network !== 'connected' ? (
               <PrivateUnavailablePanel network={network} />
+            ) : necromancerTranscript ? (
+              <NecromancerTranscriptPanel transcript={necromancerTranscript} />
             ) : snapshot.private.availableAction ? (
               <ActionPanel
                 key={`${publicState.phase}-${snapshot.private.availableAction.type}`}
@@ -159,7 +192,7 @@ export function GameScreen({
                 onSubmit={onCommand}
               />
             ) : (
-              <WaitingPanel phase={currentPhase} />
+              <WaitingPanel phase={currentPhase} role={snapshot.private.role} />
             )}
             <p className="form-message" role="status" aria-live="polite">
               {network !== 'connected'
@@ -172,7 +205,7 @@ export function GameScreen({
         </div>
       ) : null}
 
-      {afterlife ? (
+      {afterlife && !hunterDecision ? (
         <AfterlifePanel
           key={afterlife.state === 'open' ? afterlife.round : afterlife.state}
           afterlife={afterlife}
@@ -202,6 +235,103 @@ export function GameScreen({
         <span>O servidor conduz fases e prazos.</span>
       </footer>
     </main>
+  );
+}
+
+function SubmittedDecisionPanel({
+  action,
+  players,
+  phase,
+  acknowledgement,
+  acknowledged,
+  disabled,
+  onAcknowledge,
+}: {
+  action: NonNullable<GameSnapshot['private']['submittedAction']>;
+  players: PlayerSummary[];
+  phase: GamePhase;
+  acknowledgement: GameSnapshot['public']['dayResolutionAcknowledgement'];
+  acknowledged: boolean;
+  disabled: boolean;
+  onAcknowledge: () => Promise<void>;
+}) {
+  const target = players.find((player) => player.id === action.targets[0]);
+  if (action.type === 'day-vote') {
+    return (
+      <div className="waiting-panel" aria-live="polite">
+        <span className="waiting-glyph" aria-hidden="true">
+          …
+        </span>
+        <p className="eyebrow">Voto registrado</p>
+        <h2 id="action-title">Aguardando a decisão dos outros jogadores</h2>
+        <p>
+          {target ? (
+            <>
+              Seu voto foi em <strong>{target.nickname}</strong>.
+            </>
+          ) : (
+            'Você confirmou sua abstenção.'
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  if (action.type === 'hunter-shoot') {
+    return (
+      <div className="waiting-panel" aria-live="polite">
+        <span className="waiting-glyph" aria-hidden="true">
+          ✓
+        </span>
+        <p className="eyebrow">Decisão registrada</p>
+        <h2 id="action-title">Sua decisão foi guardada</h2>
+        <p>
+          {target ? (
+            <>
+              Você escolheu atirar em <strong>{target.nickname}</strong>.
+            </>
+          ) : (
+            'Você escolheu não atirar.'
+          )}
+        </p>
+        {phase === 'day-resolution' && acknowledgement ? (
+          <div className="day-resolution-confirmation">
+            <p>
+              {acknowledgement.acknowledgedCount} de{' '}
+              {acknowledgement.requiredCount} jogadores confirmaram o resumo.
+            </p>
+            <button
+              className="primary-button"
+              type="button"
+              disabled={disabled || acknowledged}
+              onClick={() => void onAcknowledge()}
+            >
+              {acknowledged ? 'Resumo confirmado' : 'Continuar após a decisão'}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  const resultLabels: Partial<Record<KnowledgeFact, string>> = {
+    werewolves: 'Lobisomens',
+    village: 'Cidade',
+    neutral: 'Neutro',
+  };
+  const resultLabel = action.result ? resultLabels[action.result] : undefined;
+  return (
+    <div className="waiting-panel" aria-live="polite">
+      <span className="waiting-glyph" aria-hidden="true">
+        ◉
+      </span>
+      <p className="eyebrow">Visão revelada</p>
+      <h2 id="action-title">Resultado da consulta</h2>
+      <p>
+        <strong>{target?.nickname ?? 'O jogador escolhido'}</strong> pertence ao
+        alinhamento <strong>{resultLabel ?? 'desconhecido'}</strong>.
+      </p>
+    </div>
   );
 }
 
@@ -785,26 +915,85 @@ function AnnouncementPanel({
   );
 }
 
-function WaitingPanel({ phase }: { phase: GameSnapshot['public']['phase'] }) {
+function WaitingPanel({
+  phase,
+  role,
+}: {
+  phase: GameSnapshot['public']['phase'];
+  role: GameSnapshot['private']['role'];
+}) {
   const isDiscussion = phase === 'discussion';
+  const packClosed =
+    (phase === 'first-night' || phase === 'night') &&
+    (role === 'werewolf' || role === 'alpha-wolf');
   return (
     <div className="waiting-panel">
       <span className="waiting-glyph" aria-hidden="true">
         {isDiscussion ? '☼' : '…'}
       </span>
       <p className="eyebrow">
-        {isDiscussion ? 'Converse frente a frente' : 'Sua escolha está feita'}
+        {isDiscussion
+          ? 'Converse frente a frente'
+          : packClosed
+            ? 'Etapa da alcateia encerrada'
+            : 'Sua escolha está feita'}
       </p>
       <h2 id="action-title">
         {isDiscussion
           ? 'Escute. Desconfie. Convença.'
-          : 'Aguarde as ações dos jogadores'}
+          : packClosed
+            ? 'Aguarde as outras ações da noite'
+            : 'Aguarde as ações dos jogadores'}
       </h2>
       <p>
         {isDiscussion
           ? 'Quando o tempo terminar, a votação abrirá automaticamente.'
-          : 'A fase pode terminar antes do prazo quando todas as decisões chegarem.'}
+          : packClosed
+            ? 'O voto da alcateia já foi fechado, por conclusão ou fim do prazo.'
+            : 'A fase pode terminar antes do prazo quando todas as decisões chegarem.'}
       </p>
+    </div>
+  );
+}
+
+function NecromancerTranscriptPanel({
+  transcript,
+}: {
+  transcript: NonNullable<GameSnapshot['private']['necromancerTranscript']>;
+}) {
+  return (
+    <div className="necromancer-transcript">
+      <p className="eyebrow">Vozes além do véu</p>
+      <h2 id="action-title">Sussurros dos mortos</h2>
+      <p>
+        Você consegue compreender {transcript.visibilityPercent}% das mensagens.
+        Os espíritos podem tentar enganar você.
+      </p>
+      <div
+        className="necromancer-clarity"
+        role="progressbar"
+        aria-label="Clareza dos sussurros"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={transcript.visibilityPercent}
+      >
+        <span style={{ width: `${transcript.visibilityPercent}%` }} />
+      </div>
+      {transcript.messages.length > 0 ? (
+        <ol className="necromancer-messages">
+          {transcript.messages.map((message) => (
+            <li key={message.sequence}>
+              <strong>{message.spiritLabel}</strong>
+              <p>{message.text}</p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="necromancer-empty">
+          Nenhuma voz atravessou o véu até agora.
+        </p>
+      )}
+      <small>Somente leitura · nomes e horários permanecem ocultos</small>
     </div>
   );
 }
@@ -1028,9 +1217,7 @@ function FinalScreen({
                 className={entry.winner ? 'is-winner' : ''}
                 key={entry.playerId}
               >
-                <span className="role-sigil small" aria-hidden="true">
-                  {role.mark}
-                </span>
+                <RoleIcon roleId={entry.role} className="role-sigil small" />
                 <span>
                   <strong>{entry.nickname}</strong>
                   <small>{role.name}</small>

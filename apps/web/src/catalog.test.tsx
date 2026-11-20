@@ -5,10 +5,44 @@ import { gameRuleCatalog, roleCatalog } from './catalog';
 import { LobbyScreen } from './components/LobbyScreen';
 import { makeSnapshot } from './test/fixtures';
 import { themeCatalog } from './themeCatalog';
+import { RoleIcon, roleIcons } from './components/RoleIcon';
 
 describe('catálogo de regras', () => {
-  it('documenta os onze papéis e as interações críticas em um catálogo', () => {
-    expect(Object.keys(roleCatalog)).toHaveLength(12);
+  it('associa os onze ícones gerados aos papéis especiais', () => {
+    expect(Object.keys(roleIcons).sort()).toEqual(
+      [
+        'alpha-wolf',
+        'cupid',
+        'doctor',
+        'fool',
+        'guardian',
+        'hunter',
+        'little-girl',
+        'mayor',
+        'necromancer',
+        'seer',
+        'witch',
+      ].sort(),
+    );
+
+    const { container, rerender } = render(
+      <RoleIcon roleId="seer" className="role-sigil" />,
+    );
+    expect(
+      container.querySelector('[data-role-icon="seer"] img'),
+    ).toHaveAttribute('src');
+
+    rerender(<RoleIcon roleId="villager" className="role-sigil" />);
+    expect(
+      container.querySelector('[data-role-icon="villager"] img'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-role-icon="villager"]'),
+    ).toHaveTextContent('A');
+  });
+
+  it('documenta os treze papéis e as interações críticas em um catálogo', () => {
+    expect(Object.keys(roleCatalog)).toHaveLength(13);
     expect(roleCatalog['alpha-wolf'].rules.join(' ')).toMatch(/Vidente/);
     for (const role of Object.values(roleCatalog)) {
       expect(role.targeting.length).toBeGreaterThan(10);
@@ -22,6 +56,7 @@ describe('catálogo de regras', () => {
       /não escolhe um alvo/i,
     );
     expect(roleCatalog['little-girl'].rules.join(' ')).toMatch(/25%/);
+    expect(roleCatalog.necromancer.rules.join(' ')).toMatch(/10%/);
     expect(gameRuleCatalog.resolutionPriority.join(' ')).toMatch(/Guardião/i);
     expect(gameRuleCatalog.specialVictories.join(' ')).toMatch(/Bobo/i);
   });
@@ -88,7 +123,7 @@ describe('catálogo de regras', () => {
       />,
     );
 
-    await user.click(screen.getByText('Consultar regras dos 11 papéis'));
+    await user.click(screen.getByText('Consultar regras dos 13 papéis'));
     expect(screen.getByRole('heading', { name: 'Bruxa' })).toBeVisible();
     expect(
       screen.getByRole('heading', { name: 'Prioridade da resolução' }),

@@ -89,10 +89,12 @@ export function makeSnapshot(
       knownPlayers: [],
       resources: {},
       availableAction: null,
+      submittedAction: null,
       readyForVote: false,
       acknowledgedDayResolution: false,
       personalWinner: false,
       afterlife: null,
+      necromancerTranscript: null,
     },
     host: {
       canConfigure: true,

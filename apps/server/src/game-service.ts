@@ -15,9 +15,11 @@ import type {
   GamePhase,
   GameSnapshot,
   KnowledgeFact,
+  NecromancerTranscript,
   RoleArtworkSetId,
   RoleId,
   RoomSettings,
+  SubmittedAction,
   ThemeId,
 } from './contracts.js';
 import { avatarIds, knowledgeFacts, themeIds } from './contracts.js';
@@ -114,7 +116,9 @@ export type Identity = {
 type NightStage = 'cupid' | 'pack' | 'night-actions';
 
 const EXILE_AFTERLIFE_MESSAGE =
-  'A vila encerrou sua jornada, mas seu espírito continua observando. Faça suas previsões e dispute o título de Oráculo do Além.';
+  'Você foi eliminado pela votação da Cidade. Sua jornada continua no Além: faça suas previsões e dispute o título de Oráculo do Além.';
+const WOLF_ATTACK_AFTERLIFE_MESSAGE =
+  'Você foi morto pelo ataque dos Lobisomens durante a noite. Sua jornada continua no Além: faça suas previsões e dispute o título de Oráculo do Além.';
 
 export type ServiceMetrics = {
   commandsAccepted: number;
@@ -158,7 +162,11 @@ const roleIds = new Set<RoleId>([
   'guardian',
   'mayor',
   'little-girl',
+  'necromancer',
 ]);
+
+const necromancerGlyphs = Array.from('zxqv#%?@&*~+=<>/|');
+const nightStageDurationMs = 120_000;
 
 function isWerewolfRole(role: RoleId): boolean {
   return role === 'werewolf' || role === 'alpha-wolf';
@@ -272,6 +280,7 @@ function phaseDurationMs(
   if (phase === 'day-resolution') return null;
   if (phase === 'hunter-shot') return 30_000;
   if (phase === 'finished') return null;
+  if (phase === 'first-night' || phase === 'night') return nightStageDurationMs;
   return 60_000;
 }
 
@@ -815,7 +824,9 @@ export class GameService {
       const gameId = randomUUID();
       const phaseId = randomUUID();
       const now = this.now();
-      const deadline = new Date(now.getTime() + 60_000).toISOString();
+      const deadline = new Date(
+        now.getTime() + nightStageDurationMs,
+      ).toISOString();
       const gameVersion = room.version + 1;
       this.database
         .prepare(
@@ -926,6 +937,19 @@ export class GameService {
             .get(game.id, identity.participantId),
         );
         assert(assignment, 403, 'forbidden', 'Participant is not in this game');
+        if (command.action === 'day-vote') {
+          const priorVote = this.database
+            .prepare(
+              "SELECT 1 FROM actions WHERE phase_id = ? AND participant_id = ? AND action_type = 'day-vote'",
+            )
+            .get(phase.id, identity.participantId);
+          assert(
+            !priorVote,
+            409,
+            'conflict',
+            'The day vote has already been submitted',
+          );
+        }
         this.validateAction(game, phase, assignment, command);
         this.database
           .prepare(
@@ -1412,6 +1436,8 @@ export class GameService {
       game && assignment
         ? this.availableAction(game, assignment, assignments)
         : null;
+    const submittedAction =
+      game && assignment ? this.submittedAction(game, assignment) : null;
     const discussionReadiness =
       game?.phase === 'discussion'
         ? this.discussionReadiness(
@@ -1452,6 +1478,13 @@ export class GameService {
     const afterlife =
       game && assignment?.alive === 0
         ? this.projectAfterlife(game, identity.participantId, participants)
+        : null;
+    const necromancerTranscript =
+      game?.status === 'active' &&
+      assignment?.alive === 1 &&
+      assignment.role === 'necromancer' &&
+      (game.phase === 'first-night' || game.phase === 'night')
+        ? this.projectNecromancerTranscript(game)
         : null;
     const blockers =
       room.status === 'lobby' ? this.startBlockers(room, participants) : [];
@@ -1504,11 +1537,13 @@ export class GameService {
             >)
           : {},
         availableAction,
+        submittedAction,
         readyForVote: discussionReadiness?.selfReady ?? false,
         acknowledgedDayResolution:
           dayResolutionAcknowledgement?.selfAcknowledged ?? false,
         personalWinner,
         afterlife,
+        necromancerTranscript,
       },
       host: identity.isHost
         ? {
@@ -1626,16 +1661,22 @@ export class GameService {
     participantId: string,
     participants: ParticipantRow[],
   ): AfterlifeSnapshot {
-    const entranceMessage = this.database
-      .prepare(
-        `SELECT 1 FROM effects
+    const elimination = row<{ cause: string }>(
+      this.database
+        .prepare(
+          `SELECT json_extract(data_json, '$.cause') AS cause FROM effects
          WHERE game_id = ? AND effect_type = 'elimination'
-           AND json_extract(data_json, '$.participantId') = ?
-           AND json_extract(data_json, '$.cause') = 'exile' LIMIT 1`,
-      )
-      .get(game.id, participantId)
-      ? EXILE_AFTERLIFE_MESSAGE
-      : null;
+            AND json_extract(data_json, '$.participantId') = ?
+          ORDER BY sequence DESC LIMIT 1`,
+        )
+        .get(game.id, participantId),
+    );
+    const entranceMessage =
+      elimination?.cause === 'exile'
+        ? EXILE_AFTERLIFE_MESSAGE
+        : elimination?.cause === 'wolf-attack'
+          ? WOLF_ATTACK_AFTERLIFE_MESSAGE
+          : null;
     const messages = rows<{
       id: string;
       participant_id: string;
@@ -1761,6 +1802,71 @@ export class GameService {
           .all(game.id),
       ).map((assignment) => assignment.participant_id),
     };
+  }
+
+  private projectNecromancerTranscript(game: GameRow): NecromancerTranscript {
+    const visibilityPercent = Math.min(100, Math.max(0, game.round - 1) * 10);
+    const spiritNumbers = new Map<string, number>();
+    const messages = rows<{
+      id: string;
+      participant_id: string;
+      text: string;
+    }>(
+      this.database
+        .prepare(
+          `SELECT id, participant_id, text FROM afterlife_messages
+           WHERE game_id = ? ORDER BY created_at, id`,
+        )
+        .all(game.id),
+    ).map((message, index) => {
+      let spiritNumber = spiritNumbers.get(message.participant_id);
+      if (spiritNumber === undefined) {
+        spiritNumber = spiritNumbers.size + 1;
+        spiritNumbers.set(message.participant_id, spiritNumber);
+      }
+      return {
+        sequence: index + 1,
+        spiritLabel: `Espírito ${spiritNumber}`,
+        text: this.obfuscateNecromancerMessage(
+          game.id,
+          message.id,
+          message.text,
+          visibilityPercent,
+        ),
+      };
+    });
+
+    return { round: game.round, visibilityPercent, messages };
+  }
+
+  private obfuscateNecromancerMessage(
+    gameId: string,
+    messageId: string,
+    text: string,
+    visibilityPercent: number,
+  ): string {
+    if (visibilityPercent >= 100) return text;
+    const characters = Array.from(text);
+    const revealThreshold = (visibilityPercent / 100) * 256;
+    let blockIndex = -1;
+    let block = Buffer.alloc(0);
+
+    return characters
+      .map((character, index) => {
+        const nextBlockIndex = Math.floor(index / 16);
+        if (nextBlockIndex !== blockIndex) {
+          blockIndex = nextBlockIndex;
+          block = createHmac('sha256', this.sessionSecret)
+            .update(`necromancer:${gameId}:${messageId}:${blockIndex}`)
+            .digest();
+        }
+        const offset = index % 16;
+        if (block[offset]! < revealThreshold) return character;
+        return necromancerGlyphs[
+          block[offset + 16]! % necromancerGlyphs.length
+        ]!;
+      })
+      .join('');
   }
 
   private afterlifeRanking(
@@ -1985,7 +2091,9 @@ export class GameService {
     phase: PhaseRow,
     stage: NightStage,
   ): void {
-    const deadline = new Date(this.now().getTime() + 60_000).toISOString();
+    const deadline = new Date(
+      this.now().getTime() + nightStageDurationMs,
+    ).toISOString();
     this.database
       .prepare('UPDATE phases SET stage = ?, deadline = ? WHERE id = ?')
       .run(stage, deadline, phase.id);
@@ -2801,7 +2909,7 @@ export class GameService {
         phase.kind === 'hunter-shot',
         409,
         'phase_closed',
-        'The hunter is not choosing a shot',
+        'That action is not available in this phase',
       );
     assert(
       new Set(command.targets).size === command.targets.length,
@@ -2867,7 +2975,10 @@ export class GameService {
         'The hunter must shoot a living player',
       );
     }
-    if (assignment.role === 'witch') {
+    if (
+      assignment.role === 'witch' &&
+      (command.action === 'witch-heal' || command.action === 'witch-poison')
+    ) {
       const resources = JSON.parse(assignment.resources_json) as Record<
         string,
         boolean
@@ -3190,6 +3301,7 @@ export class GameService {
     if (
       !type ||
       assignment.alive === 0 ||
+      assignment.role === 'hunter' ||
       (assignment.role === 'cupid' && game.phase !== 'first-night')
     )
       return null;
@@ -3218,6 +3330,70 @@ export class GameService {
       maxTargets: targetCount,
       allowAbstain: type !== 'little-girl-spy',
     };
+  }
+
+  private submittedAction(
+    game: GameRow,
+    assignment: AssignmentRow,
+  ): SubmittedAction | null {
+    if (game.status !== 'active') return null;
+    const action = row<
+      ActionRow & { phase_id: string; closed_at: string | null }
+    >(
+      this.database
+        .prepare(
+          `SELECT actions.participant_id, actions.action_type, actions.targets_json,
+             phases.id AS phase_id, phases.closed_at
+           FROM actions
+           JOIN phases ON phases.id = actions.phase_id
+           WHERE actions.game_id = ? AND actions.participant_id = ?
+             AND (
+               phases.closed_at IS NULL
+               OR (? = 'dawn' AND phases.kind IN ('first-night', 'night') AND phases.round = ?)
+               OR (? IN ('dawn', 'day-resolution') AND phases.kind = 'hunter-shot' AND phases.round = ?)
+             )
+           ORDER BY phases.sequence DESC, actions.submitted_at DESC LIMIT 1`,
+        )
+        .get(
+          game.id,
+          assignment.participant_id,
+          game.phase,
+          game.round,
+          game.phase,
+          game.round,
+        ),
+    );
+    if (!action) return null;
+    const targets = this.actionTargets(action);
+    if (action.action_type === 'seer-inspect' && targets[0]) {
+      if (action.closed_at) {
+        const effect = row<{ data_json: string }>(
+          this.database
+            .prepare(
+              "SELECT data_json FROM effects WHERE phase_id = ? AND effect_type = 'inspection' AND visible_to_participant_id = ? ORDER BY sequence DESC LIMIT 1",
+            )
+            .get(action.phase_id, assignment.participant_id),
+        );
+        const result = effect
+          ? (JSON.parse(effect.data_json) as { fact?: KnowledgeFact }).fact
+          : undefined;
+        return {
+          type: action.action_type,
+          targets,
+          ...(result ? { result } : {}),
+        };
+      }
+      return {
+        type: action.action_type,
+        targets,
+        result: this.domain.inspectAlignment(
+          assignment.participant_id,
+          targets[0],
+          this.domainPlayers(game.id),
+        ),
+      };
+    }
+    return { type: action.action_type, targets };
   }
 
   private currentWolfTarget(gameId: string): string | null {

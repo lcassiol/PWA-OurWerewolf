@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ApiClient } from './api';
 import { useCountdown, useRealtime } from './hooks';
@@ -39,6 +39,41 @@ describe('realtime authorization', () => {
     });
     expect(onSessionInvalid).toHaveBeenCalledOnce();
     unmount();
+    vi.unstubAllGlobals();
+  });
+
+  it('restaura a visão privada ao voltar visível mesmo antes do foco móvel estabilizar', async () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
+    const snapshot = makeSnapshot();
+    const apiClient = {
+      getSnapshot: vi.fn().mockResolvedValue(snapshot),
+    } as unknown as ApiClient;
+    const onSnapshot = vi.fn();
+
+    const { result, unmount } = renderHook(() =>
+      useRealtime({
+        snapshot,
+        apiClient,
+        onSnapshot,
+        onMessage: vi.fn(),
+        onSessionInvalid: vi.fn(),
+      }),
+    );
+    await act(() => {
+      FakeWebSocket.latest?.dispatchEvent(new Event('open'));
+      return Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.privateFresh).toBe(true));
+    expect(result.current.network).toBe('connected');
+    expect(onSnapshot).toHaveBeenCalledWith(snapshot);
+    unmount();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 });

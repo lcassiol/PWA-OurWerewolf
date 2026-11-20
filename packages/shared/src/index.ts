@@ -39,6 +39,7 @@ export const roleIds = [
   'guardian',
   'mayor',
   'little-girl',
+  'necromancer',
 ] as const;
 
 export type RoleId = (typeof roleIds)[number];
@@ -108,6 +109,12 @@ export type AvailableAction = ActionChoice & {
   alternatives?: ActionChoice[];
 };
 
+export type SubmittedAction = {
+  type: GameActionType;
+  targets: string[];
+  result?: KnowledgeFact;
+};
+
 export type AfterlifeTeam = 'village' | 'werewolves' | 'lovers';
 
 export type AfterlifeMessage = {
@@ -173,6 +180,16 @@ export type AfterlifeMessageCommand = {
   text: string;
 };
 
+export type NecromancerTranscript = {
+  round: number;
+  visibilityPercent: number;
+  messages: Array<{
+    sequence: number;
+    spiritLabel: string;
+    text: string;
+  }>;
+};
+
 export type AfterlifeEntryCommand = {
   commandId: string;
   expectedVersion: number;
@@ -206,10 +223,12 @@ export type PrivateSnapshot = {
   }>;
   resources: Record<string, boolean | number | string>;
   availableAction: AvailableAction | null;
+  submittedAction: SubmittedAction | null;
   readyForVote: boolean;
   acknowledgedDayResolution: boolean;
   personalWinner: boolean;
   afterlife: AfterlifeSnapshot | null;
+  necromancerTranscript: NecromancerTranscript | null;
 };
 
 export type HostSnapshot = {

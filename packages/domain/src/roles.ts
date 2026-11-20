@@ -143,6 +143,15 @@ export const roleCatalog: Readonly<Record<RoleId, RoleDefinition>> = {
     objective: 'Elimine todos os Lobisomens.',
     actions: ['little-girl-spy'],
   },
+  necromancer: {
+    id: 'necromancer',
+    name: 'Necromante',
+    alignment: 'village',
+    summary:
+      'Escuta à noite uma versão cifrada da conversa dos mortos, que se torna mais clara a cada rodada.',
+    objective: 'Elimine todos os Lobisomens.',
+    actions: [],
+  },
 };
 
 export const specialRoleIds = [
@@ -156,6 +165,7 @@ export const specialRoleIds = [
   'guardian',
   'mayor',
   'little-girl',
+  'necromancer',
 ] as const satisfies readonly RoleId[];
 
 const specialRoleSet = new Set<RoleId>(specialRoleIds);

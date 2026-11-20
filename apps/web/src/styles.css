@@ -806,6 +806,10 @@ input::placeholder {
   gap: 0.85rem;
 }
 
+.game-grid.game-grid--action-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @media (max-width: 819px) {
   .room-banner {
     padding-top: 2.8rem;
@@ -1385,6 +1389,10 @@ input::placeholder {
   background: rgba(210, 168, 94, 0.1);
 }
 
+.role-grid--readonly .role-option {
+  cursor: default;
+}
+
 .role-option__mark {
   display: grid;
   width: 32px;
@@ -1394,6 +1402,16 @@ input::placeholder {
   border: 1px solid var(--line);
   border-radius: 50%;
   font-family: var(--serif);
+  overflow: hidden;
+  background: #17120b;
+}
+
+.role-option__mark img,
+.role-sigil img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .role-catalog {
@@ -1469,41 +1487,6 @@ input::placeholder {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.selected-roles ul {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 0;
-  margin: 0;
-  gap: 0.4rem;
-  list-style: none;
-}
-
-.selected-roles li {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  padding: 0.3rem 0.55rem 0.3rem 0.35rem;
-  gap: 0.4rem;
-  color: var(--paper);
-  border: 1px solid rgba(210, 168, 94, 0.36);
-  border-radius: 99px;
-  background: rgba(210, 168, 94, 0.08);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.selected-roles li span {
-  display: inline-grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  color: #17120b;
-  border-radius: 50%;
-  background: var(--amber-light);
-  font-size: 0.62rem;
-  font-weight: 900;
 }
 
 .selected-roles > p {
@@ -1823,6 +1806,7 @@ input::placeholder {
   );
   font-family: var(--serif);
   font-size: 2rem;
+  overflow: hidden;
 }
 
 .role-sigil.small {
@@ -1867,6 +1851,74 @@ input::placeholder {
 .action-form {
   display: grid;
   gap: 0.75rem;
+}
+
+.necromancer-transcript {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.necromancer-transcript > h2,
+.necromancer-transcript > p {
+  margin: 0;
+}
+
+.necromancer-transcript > p:not(.eyebrow),
+.necromancer-transcript > small,
+.necromancer-empty {
+  color: var(--paper-muted);
+}
+
+.necromancer-clarity {
+  height: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(153, 111, 183, 0.45);
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.necromancer-clarity span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #76548d, #c3a3d7);
+}
+
+.necromancer-messages {
+  display: grid;
+  max-height: min(42vh, 25rem);
+  padding: 0;
+  margin: 0;
+  gap: 0.65rem;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.necromancer-messages li {
+  padding: 0.75rem;
+  border: 1px solid rgba(153, 111, 183, 0.24);
+  border-left: 3px solid #76548d;
+  background: rgba(62, 42, 74, 0.22);
+}
+
+.necromancer-messages strong {
+  color: #d5bce4;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.necromancer-messages p {
+  margin: 0.45rem 0 0;
+  overflow-wrap: anywhere;
+  color: var(--paper);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.55;
+}
+
+.necromancer-empty {
+  padding: 1rem;
+  border: 1px dashed rgba(153, 111, 183, 0.3);
+  text-align: center;
 }
 
 .action-form .muted-copy {

@@ -1,5 +1,5 @@
 import type { GameSnapshot, ServerEvent } from '@our-werewolf/shared';
-import { useEffect, useEffectEvent, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { ApiClient } from './api';
 import { isSessionInvalid } from './snapshots';
 import { translateUserMessage } from './userMessages';
@@ -44,10 +44,12 @@ export function useRealtime({
     navigator.onLine ? 'reconnecting' : 'offline',
   );
   const [freshRoomCode, setFreshRoomCode] = useState<string | null>(null);
+  const refreshAttempt = useRef(0);
   const roomCode = snapshot?.public.roomCode;
   const invalidateSession = useEffectEvent(onSessionInvalid);
 
   const refresh = useEffectEvent(async () => {
+    const attempt = ++refreshAttempt.current;
     if (
       !snapshot ||
       !navigator.onLine ||
@@ -59,19 +61,20 @@ export function useRealtime({
     try {
       onSnapshot(await apiClient.getSnapshot(snapshot.public.roomCode));
       if (
+        attempt === refreshAttempt.current &&
         navigator.onLine &&
-        document.visibilityState === 'visible' &&
-        document.hasFocus()
+        document.visibilityState === 'visible'
       ) {
         setFreshRoomCode(snapshot.public.roomCode);
         return true;
       }
     } catch (error) {
-      setFreshRoomCode(null);
       if (isSessionInvalid(error)) {
         invalidateSession();
         return false;
       }
+      if (attempt !== refreshAttempt.current) return false;
+      setFreshRoomCode(null);
       setNetwork(navigator.onLine ? 'reconnecting' : 'offline');
     }
     return false;
@@ -107,6 +110,7 @@ export function useRealtime({
     let stopped = false;
 
     const connect = () => {
+      refreshAttempt.current += 1;
       if (stopped || !navigator.onLine) {
         setFreshRoomCode(null);
         setNetwork('offline');
@@ -149,12 +153,14 @@ export function useRealtime({
       connect();
     };
     const offline = () => {
+      refreshAttempt.current += 1;
       setFreshRoomCode(null);
       setNetwork('offline');
       socket?.close();
     };
     const visible = () => {
       if (document.visibilityState !== 'visible') {
+        refreshAttempt.current += 1;
         setFreshRoomCode(null);
         return;
       }
@@ -163,7 +169,10 @@ export function useRealtime({
         if (!stopped && fresh) setNetwork('connected');
       });
     };
-    const blurred = () => setFreshRoomCode(null);
+    const blurred = () => {
+      refreshAttempt.current += 1;
+      setFreshRoomCode(null);
+    };
     const focused = () => {
       if (!navigator.onLine) return;
       setNetwork('reconnecting');

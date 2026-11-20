@@ -167,7 +167,7 @@ export const gameRuleCatalog: {
       targeting:
         'Na votação diurna, escolha outra pessoa viva ou confirme uma abstenção. O servidor aplica automaticamente o peso dois ao seu voto em uma pessoa.',
       rules: [
-        'Seu último voto confirmado vale dois; você pode alterá-lo enquanto a votação estiver aberta.',
+        'Seu voto confirmado vale dois e não pode ser alterado.',
         'O peso extra é aplicado sem anunciar aos demais quem é o Prefeito.',
         'Se você morrer, deixa de votar e não possui nenhuma ação adicional.',
       ],
@@ -187,6 +187,22 @@ export const gameRuleCatalog: {
         'Ser detectada não elimina você imediatamente, mas permite que a alcateia saiba quem atacar nas próximas noites.',
       ],
       mark: 'm',
+    },
+    necromancer: {
+      name: 'Necromante',
+      short:
+        'Você escuta aqueles que a vila já não pode ouvir. Durante a noite, espie a conversa dos mortos e tente desvendar seus segredos.',
+      objective:
+        'Decifre os sussurros dos mortos para ajudar a Cidade a eliminar todos os Lobisomens.',
+      targeting:
+        'Durante a noite, leia o registro anônimo dos mortos. Você não pode responder nem descobrir quem escreveu cada mensagem.',
+      rules: [
+        'Na primeira noite, o conteúdo inteiro aparece cifrado.',
+        'A cada nova noite, mais 10% de todas as mensagens, inclusive as antigas, torna-se legível.',
+        'Autores e horários permanecem ocultos; cada morto recebe um identificador como Espírito 1.',
+        'O chat é somente para leitura e os mortos podem tentar enganar você.',
+      ],
+      mark: 'N',
     },
   },
   resolutionPriority: [
@@ -217,6 +233,7 @@ export const specialRoleIds: RoleId[] = [
   'guardian',
   'mayor',
   'little-girl',
+  'necromancer',
 ];
 
 export const phaseCopy: Record<
@@ -251,7 +268,8 @@ export const phaseCopy: Record<
   voting: {
     eyebrow: 'Julgamento',
     title: 'Cada gesto pesa',
-    instruction: 'Seu voto é secreto e pode ser substituído até o fim.',
+    instruction:
+      'Seu voto é secreto e não pode ser alterado após a confirmação.',
   },
   'day-resolution': {
     eyebrow: 'Veredito',
@@ -297,7 +315,12 @@ export const actionLabels: Record<
     submit: 'Confirmar guarda',
   },
   'little-girl-spy': { title: 'Espiar a alcateia?', submit: 'Correr o risco' },
-  'day-vote': { title: 'Quem deve deixar a vila?', submit: 'Confirmar voto' },
+  'day-vote': {
+    title: 'Quem deve deixar a vila?',
+    submit: 'Confirmar voto',
+    instruction:
+      'Escolha com cuidado: o voto confirmado não pode ser alterado.',
+  },
 };
 
 export function werewolfCount(playerCount: number): number {

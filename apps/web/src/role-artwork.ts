@@ -7,6 +7,7 @@ import cartoonGuardian from './assets/roles/cartoon/The Colander-Helmed Moon Shi
 import cartoonHunter from './assets/roles/cartoon/The Moustached Hunter’s Hat Bird-3.png';
 import cartoonLittleGirl from './assets/roles/cartoon/Periscope Girl and Hooded Cat-7.png';
 import cartoonMayor from './assets/roles/cartoon/Pompous Mayor, Endless Scroll-8.png';
+import cartoonNecromancer from './assets/roles/cartoon/necromancer.png';
 import cartoonSeer from './assets/roles/cartoon/Bewildered Seer and the Crystal Duck-4.png';
 import cartoonVillager from './assets/roles/cartoon/Moonlit Farmer and Giant Turnip-12.png';
 import cartoonWerewolf from './assets/roles/cartoon/Guilty Werewolf in Sheep Disguise-1.png';
@@ -19,6 +20,7 @@ import realisticGuardian from './assets/roles/realistics/Moonlit Village Guardia
 import realisticHunter from './assets/roles/realistics/Moonlit Village Hunter-3.png';
 import realisticLittleGirl from './assets/roles/realistics/Moonlit Girl Behind the Shutter-10.png';
 import realisticMayor from './assets/roles/realistics/The Moonlit Village Mayor-9.png';
+import realisticNecromancer from './assets/roles/realistics/necromancer.png';
 import realisticSeer from './assets/roles/realistics/Moonlit seer and crystal orb-4.png';
 import realisticVillager from './assets/roles/realistics/Moonlit Village Farmer-11.png';
 import realisticWerewolf from './assets/roles/realistics/Moonlit Alley Werewolf.png';
@@ -38,6 +40,7 @@ export const roleArtwork: Record<RoleArtworkSetId, Record<RoleId, string>> = {
     guardian: cartoonGuardian,
     mayor: cartoonMayor,
     'little-girl': cartoonLittleGirl,
+    necromancer: cartoonNecromancer,
   },
   realistic: {
     werewolf: realisticWerewolf,
@@ -52,5 +55,6 @@ export const roleArtwork: Record<RoleArtworkSetId, Record<RoleId, string>> = {
     guardian: realisticGuardian,
     mayor: realisticMayor,
     'little-girl': realisticLittleGirl,
+    necromancer: realisticNecromancer,
   },
 };

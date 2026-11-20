@@ -42,7 +42,7 @@ describe('abertura offline', () => {
       render(<App apiClient={apiClient} />);
 
       expect(
-        await screen.findByRole('button', { name: 'Criar minha vila' }),
+        await screen.findByRole('button', { name: 'Entrar na vila' }),
       ).toBeInTheDocument();
       expect(
         screen.queryByText(/sessão não é mais válida/i),
@@ -112,7 +112,7 @@ describe('abertura offline', () => {
 
       await waitFor(() =>
         expect(
-          screen.getByRole('button', { name: 'Criar minha vila' }),
+          screen.getByRole('button', { name: 'Entrar na vila' }),
         ).toBeInTheDocument(),
       );
       expect(screen.getByRole('alert')).toHaveTextContent(

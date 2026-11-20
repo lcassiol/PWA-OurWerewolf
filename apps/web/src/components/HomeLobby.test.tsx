@@ -22,6 +22,7 @@ describe('entrada na Vila da Lua', () => {
       />,
     );
 
+    await user.click(screen.getByRole('button', { name: 'Criar sala' }));
     await user.type(screen.getByLabelText('Seu apelido'), 'Iara');
     await user.click(screen.getByRole('button', { name: 'Criar minha vila' }));
 
@@ -43,7 +44,9 @@ describe('entrada na Vila da Lua', () => {
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Entrar com código' }));
+    expect(
+      screen.getByRole('button', { name: 'Entrar com código' }),
+    ).toHaveAttribute('aria-pressed', 'true');
     await user.type(screen.getByLabelText('Código da sala'), 'luar');
     await user.type(screen.getByLabelText('Seu apelido'), 'Bento');
     await user.click(screen.getByRole('button', { name: 'Entrar na vila' }));
@@ -278,6 +281,11 @@ describe('lobby', () => {
     expect(screen.getByText('Sim')).toBeInTheDocument();
     expect(
       within(screen.getByLabelText('Papéis selecionados')).getByText('Vidente'),
+    ).toBeVisible();
+    expect(
+      within(screen.getByLabelText('Papéis selecionados')).getByText(
+        /A cada noite, investigue discretamente/,
+      ),
     ).toBeVisible();
     expect(
       screen.queryByText('Ver papéis selecionados'),

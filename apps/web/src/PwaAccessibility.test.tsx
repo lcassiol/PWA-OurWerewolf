@@ -52,7 +52,7 @@ describe('estrutura mobile e instalação', () => {
     );
     expect(screen.getByLabelText('Seu apelido')).toBeRequired();
     expect(
-      screen.getByRole('button', { name: 'Criar minha vila' }),
+      screen.getByRole('button', { name: 'Entrar na vila' }),
     ).toBeEnabled();
     const styles = readProjectFile('./styles.css');
     expect(styles).toContain('min-width: 320px');

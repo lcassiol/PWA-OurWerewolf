@@ -41,7 +41,7 @@ test('mobile browser layout, install metadata, rotation, and offline shell', asy
 
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(
-    page.getByRole('button', { name: 'Criar minha vila' }),
+    page.getByRole('button', { name: 'Entrar na vila' }),
   ).toBeVisible();
   const landscapeOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
@@ -54,6 +54,7 @@ test('mobile browser layout, install metadata, rotation, and offline shell', asy
   });
   await page.waitForLoadState('networkidle');
   await page.setViewportSize({ width: 412, height: 915 });
+  await page.getByRole('button', { name: 'Criar sala' }).click();
   await page.getByLabel('Seu apelido').fill('Cache Check');
   await page.getByRole('button', { name: 'Criar minha vila' }).click();
   await expect(

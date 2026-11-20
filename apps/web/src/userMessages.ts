@@ -54,7 +54,6 @@ const translations: Record<string, string> = {
     'Essa ação não está disponível nesta fase.',
   'That night stage is not accepting this action':
     'Esta etapa da noite não está aceitando essa ação.',
-  'The hunter is not choosing a shot': 'O caçador não está escolhendo um alvo.',
   'Targets must be unique': 'Os alvos devem ser diferentes.',
   'The hunter must shoot a living player':
     'O caçador deve escolher um jogador vivo.',

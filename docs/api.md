@@ -97,7 +97,7 @@ curl -fsS -b /tmp/werewolf-player.cookies \
 | `POST /rooms/:code/afterlife/messages`           | eliminated cookie          | idempotent afterlife chat message                   |
 | `PUT /rooms/:code/afterlife/rounds/:round/entry` | eligible eliminated cookie | replace that round's predictions and wager          |
 
-After an elimination, `snapshot.private.afterlife` is the authority for access and current state. Living players receive `null`. An open activity advertises `round`, the authenticated participant's current `entry`, and `eligibleTargetIds`; clients must not infer access from public death state alone.
+After an elimination, `snapshot.private.afterlife` is the authority for access and current state. Living players receive `null`. An open activity advertises `round`, the authenticated participant's current `entry`, and `eligibleTargetIds`; clients must not infer access from public death state alone. A living Necromancer may separately receive `snapshot.private.necromancerTranscript` during `first-night` or `night`. That read-only projection contains only anonymous spirit labels, obfuscated text, round, and clarity percentage; it never contains raw afterlife metadata or write permission.
 
 Afterlife writes use the same stable command-id and expected-version recovery rules as game commands:
 

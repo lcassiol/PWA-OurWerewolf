@@ -8,6 +8,7 @@ import { participantAvatarsMigration } from './migrations/005_participant_avatar
 import { roomThemesMigration } from './migrations/006_room_themes.js';
 import { alphaWolfMigration } from './migrations/007_alpha_wolf.js';
 import { afterlifeEngagementMigration } from './migrations/008_afterlife_engagement.js';
+import { necromancerMigration } from './migrations/009_necromancer.js';
 import { openDatabase } from './open.js';
 
 const migrations = [
@@ -19,6 +20,7 @@ const migrations = [
   roomThemesMigration,
   alphaWolfMigration,
   afterlifeEngagementMigration,
+  necromancerMigration,
 ] as const;
 
 type Migration = (typeof migrations)[number];

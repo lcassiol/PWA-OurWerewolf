@@ -113,7 +113,7 @@ describe('role composition and assignment', () => {
     ).toThrowError('leave room for a villager');
   });
 
-  it('catalogs all twelve roles with help and tested alignment metadata', () => {
+  it('catalogs all thirteen roles with help and tested alignment metadata', () => {
     expect(Object.keys(roleCatalog)).toEqual([
       'werewolf',
       'alpha-wolf',
@@ -127,6 +127,7 @@ describe('role composition and assignment', () => {
       'guardian',
       'mayor',
       'little-girl',
+      'necromancer',
     ]);
     for (const definition of Object.values(roleCatalog)) {
       expect(definition.summary.length).toBeGreaterThan(20);

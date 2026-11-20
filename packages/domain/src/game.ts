@@ -44,6 +44,12 @@ export function castDayVote(
   players: readonly DomainPlayer[],
   allowNoExile: boolean,
 ): DayVote[] {
+  if (votes.some(({ voterId }) => voterId === vote.voterId)) {
+    throw new DomainRuleError(
+      'duplicate-day-vote',
+      'A confirmed day vote cannot be changed.',
+    );
+  }
   const voter = requirePlayer(players, vote.voterId);
   if (!voter.alive)
     throw new DomainRuleError('dead-voter', 'Eliminated players cannot vote.');
@@ -62,7 +68,7 @@ export function castDayVote(
       );
     }
   }
-  return [...votes.filter(({ voterId }) => voterId !== vote.voterId), vote];
+  return [...votes, vote];
 }
 
 export type DayVoteResult = Readonly<{
@@ -580,6 +586,7 @@ const roleActions: Readonly<Record<RoleId, readonly GameActionType[]>> = {
   guardian: ['guardian-protect'],
   mayor: [],
   'little-girl': ['little-girl-spy'],
+  necromancer: [],
 };
 
 function actionAllowedInPhase(

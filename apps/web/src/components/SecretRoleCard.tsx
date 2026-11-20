@@ -8,6 +8,7 @@ import type {
 import { useEffect, useState } from 'react';
 import { roleCatalog } from '../catalog';
 import { roleArtwork } from '../role-artwork';
+import { RoleIcon } from './RoleIcon';
 
 const knowledgeFactLabels: Record<KnowledgeFact, string> = {
   werewolf: 'É Lobisomem.',
@@ -116,9 +117,7 @@ function RevealableSecret({
           height="780"
         />
       </figure>
-      <div className="role-sigil" aria-hidden="true">
-        {role.mark}
-      </div>
+      <RoleIcon roleId={roleId} className="role-sigil" />
       <h2>{role.name}</h2>
       <div className="role-briefing">
         <section>

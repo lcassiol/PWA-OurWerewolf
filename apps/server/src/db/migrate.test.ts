@@ -42,7 +42,7 @@ void test('migration applies constraints and rolls back cleanly', () => {
       /CHECK constraint failed/,
     );
 
-    migrateDown(database, 8);
+    migrateDown(database, 9);
     const tables = database
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name != 'schema_migrations'",
@@ -62,7 +62,7 @@ void test('migration runner is idempotent', () => {
     const applied = database
       .prepare('SELECT count(*) AS count FROM schema_migrations')
       .get() as { count: number };
-    assert.equal(applied.count, 8);
+    assert.equal(applied.count, 9);
   } finally {
     database.close();
   }
@@ -98,7 +98,7 @@ void test('removed participants release nicknames while active nicknames stay un
       () => insert.run('duplicate', 'SAME', new Date(2).toISOString(), null),
       /UNIQUE constraint failed/,
     );
-    migrateDown(database, 7);
+    migrateDown(database, 8);
     const restored = database
       .prepare('SELECT id, nickname_normalized FROM participants ORDER BY id')
       .all() as Array<{ id: string; nickname_normalized: string }>;
@@ -180,7 +180,7 @@ void test('nickname migration preserves existing games and supports down migrati
         .get(),
     );
     assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
-    migrateDown(database, 6);
+    migrateDown(database, 7);
     assert.ok(
       database
         .prepare("SELECT 1 FROM assignments WHERE id = 'assignment'")
@@ -240,7 +240,7 @@ void test('afterlife migration enforces constraints and rolls back cleanly', () 
     );
     assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
 
-    migrateDown(database, 1);
+    migrateDown(database, 2);
     const afterlifeTables = database
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'afterlife_%'",
@@ -250,6 +250,52 @@ void test('afterlife migration enforces constraints and rolls back cleanly', () 
     assert.ok(
       database.prepare("SELECT 1 FROM games WHERE id = 'game-afterlife'").get(),
     );
+  } finally {
+    database.close();
+  }
+});
+
+void test('Necromancer migration preserves assignments and downgrades the role safely', () => {
+  const database = new DatabaseSync(':memory:');
+  try {
+    migrateUp(database);
+    database.exec(`
+      INSERT INTO rooms (id, code, created_at, expires_at)
+        VALUES ('room-necromancer', 'NECR', '2026-01-01', '2027-01-01');
+      INSERT INTO participants
+        (id, room_id, nickname, nickname_normalized, joined_at)
+        VALUES ('necromancer', 'room-necromancer', 'Nina', 'nina', '2026-01-01');
+      INSERT INTO games
+        (id, room_id, status, frozen_settings_json, phase, started_at)
+        VALUES ('game-necromancer', 'room-necromancer', 'active', '{}', 'night', '2026-01-01');
+      INSERT INTO assignments
+        (id, game_id, participant_id, role, alignment)
+        VALUES ('assignment-necromancer', 'game-necromancer', 'necromancer', 'necromancer', 'village');
+    `);
+    assert.equal(
+      (
+        database
+          .prepare(
+            "SELECT role FROM assignments WHERE id = 'assignment-necromancer'",
+          )
+          .get() as { role: string }
+      ).role,
+      'necromancer',
+    );
+
+    migrateDown(database, 1);
+
+    assert.equal(
+      (
+        database
+          .prepare(
+            "SELECT role FROM assignments WHERE id = 'assignment-necromancer'",
+          )
+          .get() as { role: string }
+      ).role,
+      'villager',
+    );
+    assert.deepEqual(database.prepare('PRAGMA foreign_key_check').all(), []);
   } finally {
     database.close();
   }

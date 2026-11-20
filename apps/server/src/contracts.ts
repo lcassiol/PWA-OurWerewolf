@@ -24,6 +24,7 @@ export type {
   GameSnapshot,
   HostSnapshot,
   KnowledgeFact,
+  NecromancerTranscript,
   PlayerSummary,
   PrivateSnapshot,
   PublicSnapshot,
@@ -32,5 +33,6 @@ export type {
   RoomSettings,
   RoomStatus,
   ServerEvent,
+  SubmittedAction,
   ThemeId,
 } from '@our-werewolf/shared';

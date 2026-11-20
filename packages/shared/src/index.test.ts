@@ -64,10 +64,12 @@ describe('shared contracts', () => {
         knownPlayers: [],
         resources: {},
         availableAction: null,
+        submittedAction: null,
         readyForVote: false,
         acknowledgedDayResolution: false,
         personalWinner: false,
         afterlife: null,
+        necromancerTranscript: null,
       },
       host: null,
     };
