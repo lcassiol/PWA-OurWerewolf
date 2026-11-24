@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiRequestError } from './api';
 import {
+  isGameStarting,
   isSessionInvalid,
   recoverRejectedCommand,
   selectCurrentSnapshot,
@@ -34,6 +35,28 @@ describe('ordenação de snapshots', () => {
 
     expect(selectCurrentSnapshot(lobby, game)).toBe(game);
     expect(selectCurrentSnapshot(game, lobby)).toBe(game);
+  });
+
+  it('identifica apenas o início confirmado da partida na mesma sala', () => {
+    const lobby = makeSnapshot();
+    const game = makeSnapshot({
+      public: {
+        ...makeSnapshot().public,
+        status: 'playing',
+        phase: 'first-night',
+        version: 1,
+      },
+    });
+
+    expect(isGameStarting(lobby, game)).toBe(true);
+    expect(isGameStarting(null, game)).toBe(false);
+    expect(isGameStarting(game, game)).toBe(false);
+    expect(
+      isGameStarting(lobby, {
+        ...game,
+        public: { ...game.public, roomCode: 'UIVO' },
+      }),
+    ).toBe(false);
   });
 });
 

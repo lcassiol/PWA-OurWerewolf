@@ -19,6 +19,7 @@ import {
 import { LobbyScreen } from './components/LobbyScreen';
 import { useRealtime } from './hooks';
 import {
+  isGameStarting,
   isSessionInvalid,
   recoverRejectedCommand,
   selectCurrentSnapshot,
@@ -32,7 +33,9 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
   const [message, setMessage] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
   const [retrySession, setRetrySession] = useState(0);
+  const [nightTransition, setNightTransition] = useState<string | null>(null);
   const hasActiveSession = useRef(false);
+  const latestSnapshot = useRef<GameSnapshot | null>(null);
   const installState = usePwaInstall();
   const themeId = snapshot?.public.themeId ?? 'autumn-legend';
 
@@ -52,12 +55,25 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
 
   const applySnapshot = (incoming: GameSnapshot) => {
     hasActiveSession.current = true;
-    setSnapshot((current) => selectCurrentSnapshot(current, incoming));
+    const next = selectCurrentSnapshot(latestSnapshot.current, incoming);
+    if (next === latestSnapshot.current) return;
+    if (isGameStarting(latestSnapshot.current, next)) {
+      setNightTransition(`${next.public.roomCode}-${next.public.version}`);
+    }
+    latestSnapshot.current = next;
+    setSnapshot(next);
   };
+
+  useEffect(() => {
+    if (!nightTransition) return;
+    const timer = window.setTimeout(() => setNightTransition(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [nightTransition]);
 
   const clearInvalidSession = () => {
     const shouldNotify = hasActiveSession.current;
     hasActiveSession.current = false;
+    latestSnapshot.current = null;
     setSnapshot(null);
     if (shouldNotify)
       setMessage('Sua sessão não é mais válida. Entre novamente na vila.');
@@ -202,6 +218,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
     try {
       await apiClient.leaveRoom(snapshot.public.roomCode);
       hasActiveSession.current = false;
+      latestSnapshot.current = null;
       setSnapshot(null);
       setMessage(null);
     } catch (error) {
@@ -224,6 +241,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         snapshot.public.roomCode,
       );
       hasActiveSession.current = Boolean(nextSnapshot);
+      latestSnapshot.current = nextSnapshot;
       setSnapshot(nextSnapshot);
     } catch (error) {
       if (isSessionInvalid(error)) clearInvalidSession();
@@ -342,6 +360,7 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         Ir para o conteúdo
       </a>
       {content}
+      {nightTransition ? <NightfallTransition /> : null}
       {installState.updateWaiting ? (
         <aside className="update-toast" aria-live="polite">
           <div>
@@ -371,6 +390,20 @@ export function App({ apiClient = api }: { apiClient?: ApiClient }) {
         <span className="visually-hidden">Sala atual {roomCode}</span>
       ) : null}
     </>
+  );
+}
+
+function NightfallTransition() {
+  return (
+    <div className="nightfall-transition" aria-hidden="true">
+      <div className="nightfall-moon" />
+      <div className="nightfall-stars" />
+      <div className="nightfall-cloud nightfall-cloud--one" />
+      <div className="nightfall-cloud nightfall-cloud--two" />
+      <div className="nightfall-cloud nightfall-cloud--three" />
+      <div className="nightfall-cloud nightfall-cloud--four" />
+      <p>A noite caiu sobre a vila</p>
+    </div>
   );
 }
 

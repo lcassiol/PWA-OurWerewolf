@@ -19,6 +19,17 @@ export function selectCurrentSnapshot(
   return incoming.public.version >= current.public.version ? incoming : current;
 }
 
+export function isGameStarting(
+  current: GameSnapshot | null,
+  next: GameSnapshot,
+): boolean {
+  return (
+    current?.public.roomCode === next.public.roomCode &&
+    current.public.status === 'lobby' &&
+    next.public.status === 'playing'
+  );
+}
+
 export function isSessionInvalid(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const candidate = error as { code?: unknown; status?: unknown };
